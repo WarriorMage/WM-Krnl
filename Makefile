@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 # These are not real files, run these rules even if an up to date in the same name exists.
 .PHONY: all run debug clean
 
@@ -33,7 +35,7 @@ KERNEL  = $(BIN_DIR)/kernel.bin
 IMAGE   = $(IMG_DIR)/os.img
 
 # -------- Sources ------
-C_FILES   = protected.c
+C_FILES   = protected.c keyboard.c
 ASM_FILES = protected.asm
 
 C_SRC   = $(addprefix $(SRC_KERNEL)/, $(C_FILES))
