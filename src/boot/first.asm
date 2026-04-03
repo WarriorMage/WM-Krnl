@@ -5,6 +5,7 @@ ORG 0x7C00
 
 code_segment equ 0x08
 kernel_address equ 0x10000
+memory_map_buffer equ 0x5000
 
 cli
 
@@ -23,11 +24,36 @@ enable_a20:
     out 0x92, al
 
 load_kernel:
-    mov ah, 0x42
+    mov ah, 0x42    ; Extended read sectors (0x42)
     mov dl, [boot_drive]
     mov si, dap
-    int 0x13
+    int 0x13    ; BIOS interrupt
     jc disk_error
+
+mov di, memory_map_buffer + 2
+xor ebx, ebx
+xor si, si
+
+.e820_loop:
+    mov ax, 0
+    mov es, ax              ; Don't trust BIOS it can change segment registers.
+    mov eax, 0xE820
+    mov edx, 0x534D4150   ; 'SMAP'
+    mov ecx, 24           ; size of entry
+    int 0x15
+    jc fail             ; error → stop
+
+    cmp eax, 0x534D4150
+    jne fail            ; invalid response
+
+    ; Now buffer contains an entry
+    add di, 24            ; move to next slot
+    inc si
+
+    cmp ebx, 0
+    jne .e820_loop        ; continue if more entries
+
+mov [memory_map_buffer], si
 
 switch_to_protected:
     mov eax, cr0
@@ -47,12 +73,14 @@ mov fs, ax
 mov gs, ax
 mov ss, ax
 
+; First kernel process stack pointer
 mov esp, 0x90000
 cld
 
 jmp kernel_address
 
 disk_error:
+fail:
     jmp $
 
 boot_drive db 0

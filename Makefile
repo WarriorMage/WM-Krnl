@@ -35,8 +35,8 @@ KERNEL  = $(BIN_DIR)/kernel.bin
 IMAGE   = $(IMG_DIR)/os.img
 
 # -------- Sources ------
-C_FILES   = protected.c keyboard.c
-ASM_FILES = protected.asm
+C_FILES   = kernel_entry.c keyboard.c interrupt_handler.c gdt_setup.c process.c sample_processes.c
+ASM_FILES = interrupt_handler.asm io.asm gdt_setup.asm process.asm
 
 C_SRC   = $(addprefix $(SRC_KERNEL)/, $(C_FILES))
 ASM_SRC = $(addprefix $(SRC_KERNEL)/, $(ASM_FILES))
@@ -75,15 +75,18 @@ $(BOOT): $(SRC_BOOT)/first.asm | $(BIN_DIR)
 
 # -------- Kernel C -> ELF Object --------
 $(OBJ_DIR)/%.o: $(SRC_KERNEL)/%.c | $(OBJ_DIR)
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) -c $< -o $@ -Wall -Wextra -g
 
 # -------- Kernel ASM -> ELF Object --------
 $(OBJ_DIR)/%.asm.o: $(SRC_KERNEL)/%.asm | $(OBJ_DIR)
 	$(AS) $(ASFLAGS) $< -o $@
 
 # -------- Link Kernel -> Raw binary --------
-$(KERNEL): $(OBJ_SRC) | $(BIN_DIR)
+$(BIN_DIR)/kernel.elf: $(OBJ_SRC) | $(BIN_DIR)
 	$(CC) $(LDFLAGS) -o $@ $^ -lgcc
+
+$(KERNEL): $(BIN_DIR)/kernel.elf
+	i686-elf-objcopy -O binary $< $@
 
 # -------- Disk Image --------
 $(IMAGE): $(BOOT) $(KERNEL) | $(IMG_DIR)
