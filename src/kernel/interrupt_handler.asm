@@ -51,5 +51,3 @@ clear_interrupts:
 set_interrupts:
     sti
     ret
-
-

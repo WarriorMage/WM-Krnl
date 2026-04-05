@@ -35,8 +35,8 @@ KERNEL  = $(BIN_DIR)/kernel.bin
 IMAGE   = $(IMG_DIR)/os.img
 
 # -------- Sources ------
-C_FILES   = kernel_entry.c keyboard.c interrupt_handler.c gdt_setup.c process.c sample_processes.c
-ASM_FILES = interrupt_handler.asm io.asm gdt_setup.asm process.asm
+C_FILES   = kernel_entry.c keyboard.c interrupt_handler.c gdt_setup.c process.c sample_processes.c allocator.c paging.c
+ASM_FILES = interrupt_handler.asm io.asm gdt_setup.asm process.asm paging.asm
 
 C_SRC   = $(addprefix $(SRC_KERNEL)/, $(C_FILES))
 ASM_SRC = $(addprefix $(SRC_KERNEL)/, $(ASM_FILES))
@@ -107,13 +107,13 @@ $(IMAGE): $(BOOT) $(KERNEL) | $(IMG_DIR)
 run: $(IMAGE)
 # Consider os.img as a hard disk drive with raw format with no headers and such.
 # It contains exactly the bytes written (raw format). i386 to emulate 32 bit x86.
-	$(EMU) -drive format=raw,file=$(IMAGE)
+	$(EMU) -m 512 -drive format=raw,file=$(IMAGE)
 
 # -------- Debug (optional) --------
 debug: $(IMAGE)
 # -S pauses execution right at start, -s allows to open gdb in another window and 
 # debug the machine by opening a backdoor like localhost:1234
-	$(EMU) -drive format=raw,file=$(IMAGE) -s -S
+	$(EMU) -m 512 -drive format=raw,file=$(IMAGE) -s -S
 
 # -------- Clean --------
 clean:

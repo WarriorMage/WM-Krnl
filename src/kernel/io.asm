@@ -13,3 +13,4 @@ outb:   ; void outb (uint16_t port, uint8_t value);
     mov dx, [esp + 4]   ; Read the 16 bit port number
     out dx, al
     ret
+    

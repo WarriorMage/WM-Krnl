@@ -9,7 +9,8 @@
 #include "keyboard.h"
 #include "sample_processes.h"
 #include "process.h"
-#include "allocator.c"
+#include "allocator.h"
+#include "paging.h"
 
 extern char __bss_start;
 extern char __bss_end;
@@ -45,6 +46,14 @@ __attribute__((section(".start"))) void kernel_main(void)
     clear_screen();
     remap_pic();
     read_memory_map_buffer();
+    setup_allocator();
+    page_directory_entry *directory_location = setup_page_directory();
+    if(directory_location){
+        init_paging(directory_location);
+        print_char_to_vga(6, 0, 'y', 0x07);
+    }
+    else
+        print_char_to_vga(6, 0, 'x', 0x07);
 
     create_process(process_1);
     create_process(process_2);

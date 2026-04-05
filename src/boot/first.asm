@@ -99,7 +99,7 @@ gdtr_descriptor:
 dap:
     db 0x10        ; 0  Size of packet (16 bytes)
     db 0           ; 1  Reserved (must be 0)
-    dw 20          ; 2  Number of sectors to read
+    dw 40          ; 2  Number of sectors to read
     dw 0x0000      ; 4  Buffer offset
     dw 0x1000     ; 6  Buffer segment
     dq 1         ; 8  64-bit starting LBA
