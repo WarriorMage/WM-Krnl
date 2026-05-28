@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
+#include "keyboard.h"
 
 #define VGA_MEMORY_BASE 0xB8000
 
@@ -56,18 +57,12 @@ bool print_char_to_vga(uint8_t row, uint8_t col, uint8_t character, uint8_t colo
 
 void print_counter(void)
 {
-    static uint8_t counter = 0;
-    char print_buffer[4];
+    static uint64_t counter = 0;
+    char print_buffer[21];
     itoa(counter, print_buffer);
     size_t i = 0;
     for (; print_buffer[i]; ++i)
         print_char_to_vga(1, i, print_buffer[i], 0x07);
-    while (i < 4)
-    {
-        print_char_to_vga(1, i, ' ', 0x07);
-        ++i;
-    }
-
     counter++;
 }
 
@@ -103,7 +98,8 @@ void process_1(void)
     uint8_t i = 0;
     while (1)
     {
-        for (volatile int j = 0; j < 10000000; j++);
+        for (volatile int j = 0; j < 10000000; j++)
+            ;
         print_char_to_vga(3, (i == 0) ? 79 : i - 1, ' ', 0x07);
         print_char_to_vga(3, i, 'A', 0x07);
         i = (i + 1) % 80;
@@ -115,9 +111,20 @@ void process_2(void)
     uint8_t i = 79;
     while (1)
     {
-        for (volatile int j = 0; j < 10000000; j++);
+        for (volatile int j = 0; j < 10000000; j++)
+            ;
         print_char_to_vga(4, (i + 1) % 80, ' ', 0x07);
         print_char_to_vga(4, i, 'B', 0x07);
         i = (i + 79) % 80;
+    }
+}
+
+void keyboard_input(void)
+{
+    uint8_t keyboard_input_var;
+    while (1)
+    {
+        keyboard_read(&keyboard_input_var);
+        print_char_to_vga(10, 5, scan_code_to_ascii(keyboard_input_var), 0x07);
     }
 }

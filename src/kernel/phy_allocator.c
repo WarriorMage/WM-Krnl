@@ -1,8 +1,8 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
+#include "paging.h"
 
-#define PAGE_SIZE 4096
 #define MEMORY_MAP_BUFFER 0x5000
 
 extern uint32_t __kernel_start;
@@ -24,7 +24,7 @@ typedef struct usable_region
     uint64_t length;
 } usable_region;
 
-#define MAP_ENTRIES_BOUND 32
+#define MAP_ENTRIES_BOUND 64
 memory_map_entry memory_map[MAP_ENTRIES_BOUND];
 uint16_t memory_map_entry_count;
 usable_region usable_regions[MAP_ENTRIES_BOUND];
@@ -66,10 +66,10 @@ typedef struct free_page
     struct free_page *next;
 } free_page;
 
-void check_page_status(const void *base_address)
-{
-    base_address = (void *)((uint32_t)base_address & ~0xFFF);
-}
+// void check_page_status(const void *base_address) ; idk what i wrote this for, maybe it will help later.
+// {
+//     base_address = (void *)((uint32_t)base_address & ~0xFFF);
+// }
 
 void bit_set(uint8_t *base_address, size_t bit_position, bool bit_value)
 {
@@ -102,9 +102,9 @@ void setup_allocator(void)
         if (end_address > max_address)
             max_address = end_address;
     }
-    if(max_address > UINT32_MAX)
+    if (max_address > UINT32_MAX)
         max_address = UINT32_MAX;
-    
+
     bitmap_size_in_bytes = align_down(max_address) / PAGE_SIZE / 8;
     for (size_t i = 0; i < bitmap_size_in_bytes; ++i)
     {
@@ -121,20 +121,6 @@ void setup_allocator(void)
         {
             j -= PAGE_SIZE;
             bit_set(bitmap, j / PAGE_SIZE, USED);
-        }
-    }
-
-    for (size_t i = 0; i < memory_map_entry_count; ++i)
-    {
-        if (memory_map[i].type != 1)
-        {
-
-            // Use uint64_t as for the last entry j becomes 4GB after the iteration,
-            // overflowing and becoming zero leading to an infinite loop
-            for (uint64_t j = align_down(memory_map[i].base); j < memory_map[i].base + memory_map[i].length; j += PAGE_SIZE)
-            {
-                bit_set(bitmap, j / PAGE_SIZE, USED);
-            }
         }
     }
 

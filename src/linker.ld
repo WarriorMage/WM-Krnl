@@ -6,7 +6,7 @@ SECTIONS
     __kernel_start = 0x10000;
     . = __kernel_start;
         
-/* My .start (kernel_main) should come first at 0x10000 exactly followed by all code. */
+/* My .start (kernel_init) should come first at 0x10000 exactly followed by all code. */
     .text :
     {
         *(.start)

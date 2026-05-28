@@ -6,3 +6,4 @@ void print_counter(void);
 
 void process_1(void);
 void process_2(void);
+void keyboard_input(void);

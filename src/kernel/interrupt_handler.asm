@@ -17,13 +17,16 @@ global after_return_32
 %macro ISR 1
 isr_%1:
     pushad
-    mov eax, esp
-    push eax
+    push esp    ; Pushes the original esp value before the push
     push %1
     call interrupt_dispatcher
     add esp, 2 * 4
     after_return_%1:
     popad
+    %if (%1 == 8) || (%1 >= 10 && %1 <= 14) || (%1 == 17)
+        add esp, 4 ; CPU pushes an additional error code for these interrupt numbers
+        ; pop it or else iretd will get corrupted.
+    %endif
     iretd
 %endmacro
 

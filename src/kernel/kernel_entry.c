@@ -9,7 +9,8 @@
 #include "keyboard.h"
 #include "sample_processes.h"
 #include "process.h"
-#include "allocator.h"
+#include "phy_allocator.h"
+#include "vir_allocator.h"
 #include "paging.h"
 
 extern char __bss_start;
@@ -17,10 +18,13 @@ extern char __bss_end;
 
 void clear_bss(void)
 {
-    char *bss = &__bss_start;
+    volatile char *bss = &__bss_start;
     while (bss < &__bss_end)
         *bss++ = 0;
 }
+
+#define PIT_BASE_DATA 0x40
+#define PIT_COMMAND 0x43
 
 void set_pit_frequency(uint32_t frequency)
 {
@@ -28,13 +32,23 @@ void set_pit_frequency(uint32_t frequency)
     // 18.2 Hz is the minimum possible frequency
     uint16_t divisor = 1193182 / frequency;
 
-    outb(0x43, 0x36);
-    outb(0x40, divisor & 0xFF);
-    outb(0x40, (divisor >> 8) & 0xFF);
+    outb(PIT_COMMAND, 0x36);
+    outb(PIT_BASE_DATA, divisor & 0xFF);
+    outb(PIT_BASE_DATA, (divisor >> 8) & 0xFF);
+}
+
+void kernel_panic(void)
+{
+    const char message[] = "KERNEL PANIC!";
+    for (size_t i = 0; message[i] != '\0'; ++i)
+        print_char_to_vga(0, i, message[i], 0x07);
+    while (true)
+    {
+    }
 }
 
 // ENTRY POINT!
-__attribute__((section(".start"))) void kernel_main(void)
+__attribute__((section(".start"))) void kernel_init(void)
 {
     initialize_kernel_process();
     set_pit_frequency(100);
@@ -48,22 +62,28 @@ __attribute__((section(".start"))) void kernel_main(void)
     read_memory_map_buffer();
     setup_allocator();
     page_directory_entry *directory_location = setup_page_directory();
-    if(directory_location){
+    if (directory_location)
         init_paging(directory_location);
-        print_char_to_vga(6, 0, 'y', 0x07);
-    }
     else
-        print_char_to_vga(6, 0, 'x', 0x07);
+        kernel_panic();
+    if(!map_page_to_frame(0x900000 - 1))
+        kernel_panic();
+    switch_to_virtual_stack();
+}
 
+void kernel_main(void)
+{
     create_process(process_1);
     create_process(process_2);
+    create_process(keyboard_input);
+
+    void *heap_ptr = kmalloc(100);
+    *(char *)heap_ptr = 'z';
+    print_char_to_vga(7, 0, *(char *)heap_ptr, 0x07);
+    kfree(heap_ptr);
 
     set_interrupts();
-    uint8_t read_from_keyboard;
-
     while (1)
     {
-        keyboard_read(&read_from_keyboard);
-        print_char_to_vga(2, 0, scan_code_to_ascii(read_from_keyboard), 0x07);
     }
 }

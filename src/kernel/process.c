@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
+#include "paging.h"
 
 typedef enum process_state
 {
@@ -8,7 +9,7 @@ typedef enum process_state
     // Which is what BSS does automatically, change this and won't work
     READY,
     RUNNING,
-    BLOCK, // For later
+    BLOCKED, // For later
 } process_state;
 
 // For scheduling
@@ -28,11 +29,13 @@ void context_switch_asm(uint32_t new_stack_top);
 
 uint8_t current_process = 0;
 
+// fix infinite loop when no other process is ready
+
 void context_switch(uint32_t current_stack_top)
 {
-    uint8_t next_process = current_process + 1;
+    uint8_t next_process = (current_process + 1) % MAX_PROCESSES;
     while (process_list[next_process].state != READY)
-        next_process = (next_process + 1) % 256;
+        next_process = (next_process + 1) % MAX_PROCESSES;
     process_list[current_process].kernel_stack_top = current_stack_top;
     if (process_list[current_process].state == RUNNING)
         process_list[current_process].state = READY;
@@ -56,22 +59,35 @@ uint8_t assign_process_id(void)
     return next_id++;
 }
 
-#define PROCESS_STACK_SIZE 8192 // 8 KB stack per process
+#define PAGES_PER_THREAD 3 // 2 usable, 1 guard to detect overflow
 uint32_t assign_stack(uint8_t process_id)
 {
-    return 0x90000 - (process_id * PROCESS_STACK_SIZE);
+    uint32_t thread_stack_top = STACK_BASE - (process_id * PAGES_PER_THREAD * PAGE_SIZE);
+    if(thread_stack_top < STACK_END + 3 * PAGE_SIZE)
+        return 0; // Fail, don't map heap region for stack
+
+    map_page_to_frame(thread_stack_top - PAGE_SIZE);
+    map_page_to_frame(thread_stack_top - 2 * PAGE_SIZE);
+    return thread_stack_top;
 }
 
 uint32_t setup_new_stack(uint32_t new_stack_top, void (*source_address)(void));
 
-// Applies on current exiting process
-void destroy_stack();
-
-void create_process(void (*source_address)(void))
+bool create_process(void (*source_address)(void))
 {
     uint8_t received_pid = assign_process_id();
-    uint32_t new_stack_top = setup_new_stack(assign_stack(received_pid), source_address);
+
+    page_directory_entry *process_directory = setup_page_directory();
+    if(!process_directory)
+        return false;
+    
+    uint32_t fresh_top = assign_stack(received_pid);
+    if(!fresh_top)
+        return false;
+
+    uint32_t new_stack_top = setup_new_stack(fresh_top, source_address);
     process_list[received_pid] = (process){READY, received_pid, new_stack_top};
+    return true;
 }
 
 void exit_process()

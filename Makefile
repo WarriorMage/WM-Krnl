@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-# These are not real files, run these rules even if an up to date in the same name exists.
+# These are not real files, run these rules even if an up to date file in the same name exists.
 .PHONY: all run debug clean
 
 # -------- Tools --------
@@ -35,7 +35,7 @@ KERNEL  = $(BIN_DIR)/kernel.bin
 IMAGE   = $(IMG_DIR)/os.img
 
 # -------- Sources ------
-C_FILES   = kernel_entry.c keyboard.c interrupt_handler.c gdt_setup.c process.c sample_processes.c allocator.c paging.c
+C_FILES   = kernel_entry.c keyboard.c interrupt_handler.c gdt_setup.c process.c sample_processes.c phy_allocator.c paging.c vir_allocator.c
 ASM_FILES = interrupt_handler.asm io.asm gdt_setup.asm process.asm paging.asm
 
 C_SRC   = $(addprefix $(SRC_KERNEL)/, $(C_FILES))

@@ -1,9 +1,11 @@
 #include <stdint.h>
+#include <stddef.h>
 #include "io.h"
 #include "interrupt_handler.h"
 #include "keyboard.h"
 #include "sample_processes.h"
 #include "process.h"
+#include "paging.h"
 
 #define MASTER_COMMAND 0x20
 #define MASTER_DATA 0x21   // Consists of the interrupt mask data for master
@@ -36,15 +38,20 @@ void remap_pic(void)
     outb(SLAVE_DATA, slave_masks);
 }
 
+#define PAGE_FAULT 14
+
 void interrupt_dispatcher(uint8_t interrupt_number, uint32_t esp)
 {
     switch (interrupt_number)
     {
+    case PAGE_FAULT:
+        page_fault_handler();
+        break;
     case MASTER_BASE:
         static uint8_t switch_activate = 0;
         print_counter();
-        outb(MASTER_COMMAND, EOI);
         switch_activate = (switch_activate + 1) % 100;
+        outb(MASTER_COMMAND, EOI);
         if (switch_activate == 1)
             context_switch(esp);
         break;
