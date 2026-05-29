@@ -35,7 +35,7 @@ KERNEL  = $(BIN_DIR)/kernel.bin
 IMAGE   = $(IMG_DIR)/os.img
 
 # -------- Sources ------
-C_FILES   = kernel_entry.c keyboard.c interrupt_handler.c gdt_setup.c process.c sample_processes.c phy_allocator.c paging.c vir_allocator.c
+C_FILES   = kernel_entry.c keyboard.c interrupt_handler.c gdt_setup.c process.c sample_processes.c phy_allocator.c paging.c vir_allocator.c read_disk.c
 ASM_FILES = interrupt_handler.asm io.asm gdt_setup.asm process.asm paging.asm
 
 C_SRC   = $(addprefix $(SRC_KERNEL)/, $(C_FILES))
@@ -102,6 +102,8 @@ $(IMAGE): $(BOOT) $(KERNEL) | $(IMG_DIR)
 
 # Skip 1 block (seek) of 512 bytes (block size) and write kernel.bin
 	dd if=$(KERNEL) of=$(IMAGE) bs=512 seek=1 conv=notrunc 2>/dev/null
+
+	dd if=test.txt of=$(IMAGE) bs=512 seek=100 conv=notrunc 2>/dev/null
 
 # -------- Run --------
 run: $(IMAGE)

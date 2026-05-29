@@ -80,6 +80,8 @@ bool create_process(void (*source_address)(void))
     page_directory_entry *process_directory = setup_page_directory();
     if(!process_directory)
         return false;
+
+    map_kernel_into_process(process_directory, kernel_map);
     
     uint32_t fresh_top = assign_stack(received_pid);
     if(!fresh_top)

@@ -2,6 +2,7 @@ section .text
 
 global inb
 global outb
+global inw
 
 inb:    ; uint8_t inb (uint16_t port);
     mov dx, [esp + 4]   ; Read the 16 bit port number
@@ -12,5 +13,10 @@ outb:   ; void outb (uint16_t port, uint8_t value);
     mov al, [esp + 8]  ; Read the value at top as push right -> left
     mov dx, [esp + 4]   ; Read the 16 bit port number
     out dx, al
+    ret
+
+inw:
+    mov dx, [esp + 4]   ; Read the 16 bit port number
+    in ax, dx   ; return value in eax, only 16 bits so in ax
     ret
     

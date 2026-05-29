@@ -2,6 +2,7 @@
 #include <stddef.h>
 #include <stdbool.h>
 #include "keyboard.h"
+#include "read_disk.h"
 
 #define VGA_MEMORY_BASE 0xB8000
 
@@ -127,4 +128,12 @@ void keyboard_input(void)
         keyboard_read(&keyboard_input_var);
         print_char_to_vga(10, 5, scan_code_to_ascii(keyboard_input_var), 0x07);
     }
+}
+
+void read_disk_stuff(void)
+{
+    char buffer[512];
+    read_sector(100, buffer);
+    for (size_t i = 0; i < sizeof(buffer); ++i)
+        print_char_to_vga(6 + (i / 80), i % 80, buffer[i], 0x07);
 }

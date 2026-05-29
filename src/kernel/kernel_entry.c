@@ -61,6 +61,8 @@ __attribute__((section(".start"))) void kernel_init(void)
     remap_pic();
     read_memory_map_buffer();
     setup_allocator();
+    if(!initiate_kernel_map())
+        kernel_panic();
     page_directory_entry *directory_location = setup_page_directory();
     if (directory_location)
         init_paging(directory_location);
@@ -75,7 +77,7 @@ void kernel_main(void)
 {
     create_process(process_1);
     create_process(process_2);
-    create_process(keyboard_input);
+    create_process(read_disk_stuff);
 
     void *heap_ptr = kmalloc(100);
     *(char *)heap_ptr = 'z';

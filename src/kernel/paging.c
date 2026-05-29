@@ -9,7 +9,6 @@
 #define IS_WRITABLE 0x2
 #define USER_ALLOWED 0x4
 
-typedef uint32_t page_table_entry, page_directory_entry;
 // high 20 bits for frame number, next 12 bits for flags, format:
 // 3 bits for OS use |
 // G(PTE/PDE+PS)/X | PS(PDE)/PAT(PTE) | D(dirty, PTE/PDE+PS)/0 | A(accessed) | PCD | PWT
@@ -92,14 +91,9 @@ size_t residue(size_t num1, size_t num2)
 }
 
 #define KERNEL_BASE 0xC0000000
+kernel_table_info kernel_map;
 
-typedef struct kernel_table_info
-{
-    page_table_entry **kernel_tables;
-    size_t length;
-} kernel_table_info;
-
-void map_kernel_into_process(page_directory_entry *process_directory, kernel_table_info kernel_map)
+void map_kernel_into_process(page_directory_entry *process_directory, const kernel_table_info kernel_map)
 {
     static const size_t base_index = (KERNEL_BASE / (PAGE_SIZE * PAGE_TABLE_SIZE));
     static const uint16_t flags = IS_PRESENT | IS_WRITABLE;
@@ -111,10 +105,11 @@ void map_kernel_into_process(page_directory_entry *process_directory, kernel_tab
         process_directory[base_index + i] = 0;
 }
 
-kernel_table_info initiate_kernel_map(void)
+bool initiate_kernel_map(void)
 {
-    page_table_entry **kernel_tables = allocate_frame();
-    size_t table_size = 0;
+    kernel_map.kernel_tables = allocate_frame();
+    if(!kernel_map.kernel_tables)
+        return false;
 
     size_t kernel_page_count = ((&__kernel_end - &__kernel_start) / PAGE_SIZE) + residue(&__kernel_end - &__kernel_start, PAGE_SIZE);
     size_t kernel_page_table_count = (kernel_page_count / PAGE_TABLE_SIZE) + residue(kernel_page_count, PAGE_TABLE_SIZE);
@@ -122,11 +117,11 @@ kernel_table_info initiate_kernel_map(void)
 
     for (size_t i = 0; i < kernel_page_table_count; ++i)
     {
-        page_table_entry *kernel_map = allocate_frame();
-        ++table_size;
-        kernel_tables[i] = kernel_map;
-        if (!kernel_map)
-            return (kernel_table_info){NULL, 0};
+        page_table_entry *kernel_map_table = allocate_frame();
+        if (!kernel_map_table)
+            return false;
+        ++(kernel_map.length);
+        kernel_map.kernel_tables[i] = kernel_map_table;
 
         size_t table_entries = (i == kernel_page_table_count - 1) ? (kernel_page_count - (kernel_page_table_count - 1) * PAGE_TABLE_SIZE) : PAGE_TABLE_SIZE;
         size_t j = 0;
@@ -134,11 +129,11 @@ kernel_table_info initiate_kernel_map(void)
         for (; j < table_entries; ++j)
         {
             uint32_t offset = (i * PAGE_SIZE * PAGE_TABLE_SIZE) + (j * PAGE_SIZE);
-            kernel_map[j] = (uint32_t)(&__kernel_start + offset) | (flags & 0xFFF);
+            kernel_map_table[j] = (uint32_t)(&__kernel_start + offset) | (flags & 0xFFF);
         }
         for (; j < PAGE_TABLE_SIZE; ++j)
-            kernel_map[j] = 0;
+            kernel_map_table[j] = 0;
     }
 
-    return (kernel_table_info){kernel_tables, table_size};
+    return true;
 }
