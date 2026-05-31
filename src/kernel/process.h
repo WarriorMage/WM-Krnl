@@ -2,6 +2,12 @@
 
 #include <stdint.h>
 
+typedef struct program_info
+{
+    uint32_t starting_lba;
+    uint32_t sector_count;
+} program_info;
+
 void initialize_kernel_process(void);
-void create_process(void (*source_address)(void));
+bool create_process(program_info program);
 void context_switch(uint32_t current_stack_top);

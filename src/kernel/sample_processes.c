@@ -132,8 +132,8 @@ void keyboard_input(void)
 
 void read_disk_stuff(void)
 {
-    char buffer[512];
-    read_sector(100, buffer);
+    char buffer[1024];
+    read_sectors(100, 2, buffer);
     for (size_t i = 0; i < sizeof(buffer); ++i)
         print_char_to_vga(6 + (i / 80), i % 80, buffer[i], 0x07);
 }

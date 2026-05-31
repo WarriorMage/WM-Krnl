@@ -6,20 +6,29 @@ SECTIONS
     __kernel_start = 0x10000;
     . = __kernel_start;
         
-/* My .start (kernel_init) should come first at 0x10000 exactly followed by all code. */
-    .text :
+/* My .bootstrap (kernel_init) should come first at 0x10000 exactly followed by all code. */
+    .bootstrap :
+    {
+        *(.bootstrap)
+    }
+    __bootstrap_end = .;
+
+    . = ALIGN(0x1000);    /* have the new section start frame aligned so that */
+    __bootstrap_end = .;  /* it can be mapped in the page table.*/
+
+    .text 0xC0000000 : AT(__bootstrap_end)
     {
         *(.start)
         *(.text)
     }
 
 /* Followed by all files' rodata and data. ELF input required to identify these sections. */
-    .rodata :
+    .rodata : AT((LOADADDR(.text) + (ADDR(.rodata) - ADDR(.text))))
     {
         *(.rodata)
     }
 
-    .data :
+    .data : AT((LOADADDR(.text) + (ADDR(.data) - ADDR(.text))))
     {
         *(.data)
     }
@@ -35,4 +44,5 @@ SECTIONS
     }
 
     __kernel_end = .;
+    __kernel_end_lma = LOADADDR(.data) + SIZEOF(.data); /* doesn't account for bss for now as it doesn't occupy space in binary, fix in runtime. */
 }

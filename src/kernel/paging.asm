@@ -5,19 +5,25 @@ global load_fault_virtual_address
 global return_page_directory
 global switch_to_virtual_stack
 
-extern kernel_main
+extern kernel_cont
+extern kernel_cont2
+
+section .bootstrap
 
 init_paging:
-    mov eax, [esp + 4]
+    mov eax, 0x90000
     mov cr3, eax
     mov eax, cr0
     or eax, 0x8000_0000
     mov cr0, eax
-    ret
+    add esp, 4
+    jmp kernel_cont
+
+section .text
 
 switch_to_virtual_stack:
-    mov esp, 0x900000
-    jmp kernel_main
+    mov esp, 0xC0000000
+    jmp kernel_cont2
 
 load_fault_virtual_address:
     mov eax, cr2

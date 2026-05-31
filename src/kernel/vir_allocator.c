@@ -2,6 +2,7 @@
 #include <stddef.h>
 #include <stdbool.h>
 #include "paging.h"
+#include "vir_allocator.h"
 
 // Should return to fix alignment, and returning pages to OS, request of multiple pages.
 
@@ -9,7 +10,6 @@
 #define MAGIC_NUMBER 12345
 // If we allocated only 4 bytes total block size = 16(meta) + 4 = 20, now free node requires 24 bytes so can't free
 #define MIN_ALLOC (sizeof(free_node) - sizeof(block_header)) // So that the block can be converted to a free node
-#define HEAP_BASE 0x400000
 
 typedef struct free_node
 {
@@ -121,7 +121,7 @@ bool add_new_page(void)
         return false;
 
     uint32_t heap_region = HEAP_BASE + heap_page_number * PAGE_SIZE;
-    if (!map_page_to_frame(heap_region))
+    if (!map_page_to_frame(return_page_directory(), heap_region))
         return false;
     
     heap_page_number++;

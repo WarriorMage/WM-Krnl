@@ -79,7 +79,7 @@ $(OBJ_DIR)/%.o: $(SRC_KERNEL)/%.c | $(OBJ_DIR)
 
 # -------- Kernel ASM -> ELF Object --------
 $(OBJ_DIR)/%.asm.o: $(SRC_KERNEL)/%.asm | $(OBJ_DIR)
-	$(AS) $(ASFLAGS) $< -o $@
+	$(AS) $(ASFLAGS) $< -o $@ -g
 
 # -------- Link Kernel -> Raw binary --------
 $(BIN_DIR)/kernel.elf: $(OBJ_SRC) | $(BIN_DIR)
@@ -103,7 +103,7 @@ $(IMAGE): $(BOOT) $(KERNEL) | $(IMG_DIR)
 # Skip 1 block (seek) of 512 bytes (block size) and write kernel.bin
 	dd if=$(KERNEL) of=$(IMAGE) bs=512 seek=1 conv=notrunc 2>/dev/null
 
-	dd if=test.txt of=$(IMAGE) bs=512 seek=100 conv=notrunc 2>/dev/null
+	dd if=test.txt of=$(IMAGE) bs=512 seek=100 count=2 conv=notrunc 2>/dev/null
 
 # -------- Run --------
 run: $(IMAGE)

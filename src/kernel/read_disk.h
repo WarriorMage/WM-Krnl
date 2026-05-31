@@ -3,4 +3,4 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-bool read_sector(uint32_t lba, void *buf);
+bool read_sectors(uint32_t lba, uint8_t sec_count, void *buf);

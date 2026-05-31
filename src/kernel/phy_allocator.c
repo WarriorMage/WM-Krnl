@@ -6,9 +6,9 @@
 #define MEMORY_MAP_BUFFER 0x5000
 
 extern uint32_t __kernel_start;
-extern uint32_t __kernel_end;
-// // Impossible to be 1 always multiple of 4K, so 1 used as sentinel.
-// static uint32_t next_free_page = 1;
+extern uint32_t __kernel_end_lma;
+extern uint32_t __bss_end;
+extern uint32_t __bss_start;
 
 typedef struct memory_map_entry
 {
@@ -65,11 +65,6 @@ typedef struct free_page
     struct free_page *prev;
     struct free_page *next;
 } free_page;
-
-// void check_page_status(const void *base_address) ; idk what i wrote this for, maybe it will help later.
-// {
-//     base_address = (void *)((uint32_t)base_address & ~0xFFF);
-// }
 
 void bit_set(uint8_t *base_address, size_t bit_position, bool bit_value)
 {
@@ -129,7 +124,7 @@ void setup_allocator(void)
         bit_set(bitmap, i, USED);
     }
 
-    for (size_t i = align_down((uint32_t)&__kernel_start); i < (uint32_t)&__kernel_end; i += PAGE_SIZE)
+    for (size_t i = align_down((uint32_t)&__kernel_start); i < (uint32_t)(&__kernel_end_lma + (&__bss_end - &__bss_start)); i += PAGE_SIZE)
         bit_set(bitmap, i / PAGE_SIZE, USED);
 
     size_t bitmap_base_page = (uint32_t)bitmap / PAGE_SIZE;
@@ -157,7 +152,7 @@ bool return_frame(void *received_page)
     if ((page_address & 0xFFF) != 0)
         return false; // Not OS provided aligned page
 
-    if (page_address < 0x100000 || page_address >= max_address || (page_address >= align_down((uint32_t)&__kernel_start) && page_address < (uint32_t)&__kernel_end) || (page_address >= align_down((uint32_t)bitmap) && page_address < (uint32_t)bitmap + bitmap_size_in_bytes))
+    if (page_address < 0x100000 || page_address >= max_address || (page_address >= align_down((uint32_t)&__kernel_start) && page_address < (uint32_t)(&__kernel_end_lma + (&__bss_end - &__bss_start))) || (page_address >= align_down((uint32_t)bitmap) && page_address < (uint32_t)bitmap + bitmap_size_in_bytes))
         return false;
 
     bool returnable = false;

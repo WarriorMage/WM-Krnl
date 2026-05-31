@@ -1,7 +1,10 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
+#include "process.h"
 #include "paging.h"
+#include "read_disk.h"
+#include "vir_allocator.h"
 
 typedef enum process_state
 {
@@ -17,7 +20,8 @@ typedef struct process
 {
     process_state state;
     uint8_t process_id;
-    uint32_t kernel_stack_top;
+    uint32_t page_directory_address;
+    uint32_t stack_top;
 } process;
 
 // Process storage
@@ -25,7 +29,7 @@ typedef struct process
 process process_list[MAX_PROCESSES];
 
 // Not supposed to return
-void context_switch_asm(uint32_t new_stack_top);
+void context_switch_asm(uint32_t new_directory_address, uint32_t new_stack_top);
 
 uint8_t current_process = 0;
 
@@ -36,20 +40,13 @@ void context_switch(uint32_t current_stack_top)
     uint8_t next_process = (current_process + 1) % MAX_PROCESSES;
     while (process_list[next_process].state != READY)
         next_process = (next_process + 1) % MAX_PROCESSES;
-    process_list[current_process].kernel_stack_top = current_stack_top;
+    process_list[current_process].stack_top = current_stack_top;
     if (process_list[current_process].state == RUNNING)
         process_list[current_process].state = READY;
 
     current_process = next_process;
     process_list[current_process].state = RUNNING;
-    context_switch_asm(process_list[current_process].kernel_stack_top);
-}
-
-void initialize_kernel_process(void)
-{
-    process_list[0].process_id = 0;
-    process_list[0].state = INVALID;
-    process_list[0].kernel_stack_top = 0x90000;
+    context_switch_asm(process_list[current_process].page_directory_address, process_list[current_process].stack_top);
 }
 
 uint8_t assign_process_id(void)
@@ -59,41 +56,41 @@ uint8_t assign_process_id(void)
     return next_id++;
 }
 
-#define PAGES_PER_THREAD 3 // 2 usable, 1 guard to detect overflow
-uint32_t assign_stack(uint8_t process_id)
+bool load_program_to_memory(page_directory_entry *process_directory, program_info program)
 {
-    uint32_t thread_stack_top = STACK_BASE - (process_id * PAGES_PER_THREAD * PAGE_SIZE);
-    if(thread_stack_top < STACK_END + 3 * PAGE_SIZE)
-        return 0; // Fail, don't map heap region for stack
-
-    map_page_to_frame(thread_stack_top - PAGE_SIZE);
-    map_page_to_frame(thread_stack_top - 2 * PAGE_SIZE);
-    return thread_stack_top;
+    size_t page_count = program.sector_count / 8 + residue(program.sector_count, 8); // page size = 8 * sector size
+    for (size_t i = 0; i < page_count; ++i)
+    {
+        if (!map_page_to_frame(process_directory, (i + 1) * PAGE_SIZE)) // leave first page unmapped
+            return false;
+    }
+    read_sectors(program.starting_lba, program.sector_count, (void *)(1 * PAGE_SIZE));
+    return true;
 }
 
-uint32_t setup_new_stack(uint32_t new_stack_top, void (*source_address)(void));
+void setup_new_stack(uint32_t new_directory_address);
 
-bool create_process(void (*source_address)(void))
+bool create_process(program_info program)
 {
     uint8_t received_pid = assign_process_id();
 
-    page_directory_entry *process_directory = setup_page_directory();
-    if(!process_directory)
+    page_directory_entry *process_directory = setup_page_directory_process();
+    if (!process_directory)
         return false;
 
-    map_kernel_into_process(process_directory, kernel_map);
-    
-    uint32_t fresh_top = assign_stack(received_pid);
-    if(!fresh_top)
+    map_kernel_into_process(process_directory);
+    load_program_to_memory(process_directory, program);
+
+    if (!map_page_to_frame(process_directory, STACK_BASE - PAGE_SIZE) || !map_page_to_frame(process_directory, HEAP_BASE))
         return false;
 
-    uint32_t new_stack_top = setup_new_stack(fresh_top, source_address);
-    process_list[received_pid] = (process){READY, received_pid, new_stack_top};
+    setup_new_stack((uint32_t)process_directory);
+    process_list[received_pid] = (process){READY, received_pid, (uint32_t)process_directory, 0xC0000000};
     return true;
 }
 
 void exit_process()
 {
     process_list[current_process].state = INVALID;
-    context_switch(assign_stack(current_process));
+    context_switch(0x90000000); // process dead, doesn't matter
 }
