@@ -121,7 +121,7 @@ bool add_new_page(void)
         return false;
 
     uint32_t heap_region = HEAP_BASE + heap_page_number * PAGE_SIZE;
-    if (!map_page_to_frame(return_page_directory(), heap_region))
+    if (!map_page_to_frame(PAGE_DIRECTORY_ADDR, heap_region))
         return false;
     
     heap_page_number++;

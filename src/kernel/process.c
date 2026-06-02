@@ -19,7 +19,7 @@ typedef enum process_state
 typedef struct process
 {
     process_state state;
-    uint8_t process_id;
+    uint16_t process_id;
     uint32_t page_directory_address;
     uint32_t stack_top;
 } process;
@@ -49,22 +49,27 @@ void context_switch(uint32_t current_stack_top)
     context_switch_asm(process_list[current_process].page_directory_address, process_list[current_process].stack_top);
 }
 
-uint8_t assign_process_id(void)
+uint16_t assign_process_id(void)
 {
     // Start processes at 1 since we assume the initial execution state to be process 0
-    static uint8_t next_id = 1;
+    static uint16_t next_id = 1;
     return next_id++;
 }
 
-bool load_program_to_memory(page_directory_entry *process_directory, program_info program)
+void switch_cr3(uint32_t new_directory_pa);
+
+bool load_program_to_memory(directory_location process_directory, program_info program)
 {
     size_t page_count = program.sector_count / 8 + residue(program.sector_count, 8); // page size = 8 * sector size
+    uint32_t current_directory = return_page_directory();               // returns pa obviously va is just 0xFFFFF000
     for (size_t i = 0; i < page_count; ++i)
     {
-        if (!map_page_to_frame(process_directory, (i + 1) * PAGE_SIZE)) // leave first page unmapped
+        if (!map_page_to_frame(process_directory.directory_va, (i + 1) * PAGE_SIZE)) // leave first page unmapped
             return false;
     }
+    switch_cr3(process_directory.directory_pa);
     read_sectors(program.starting_lba, program.sector_count, (void *)(1 * PAGE_SIZE));
+    switch_cr3(current_directory);
     return true;
 }
 
@@ -72,25 +77,26 @@ void setup_new_stack(uint32_t new_directory_address);
 
 bool create_process(program_info program)
 {
-    uint8_t received_pid = assign_process_id();
+    uint16_t received_pid = assign_process_id();
 
-    page_directory_entry *process_directory = setup_page_directory_process();
-    if (!process_directory)
+    directory_location process_directory = setup_page_directory_process();
+    if (!process_directory.directory_va)
         return false;
 
-    map_kernel_into_process(process_directory);
-    load_program_to_memory(process_directory, program);
-
-    if (!map_page_to_frame(process_directory, STACK_BASE - PAGE_SIZE) || !map_page_to_frame(process_directory, HEAP_BASE))
+    map_kernel_into_process(process_directory.directory_va);
+    if (!load_program_to_memory(process_directory, program))
         return false;
 
-    setup_new_stack((uint32_t)process_directory);
-    process_list[received_pid] = (process){READY, received_pid, (uint32_t)process_directory, 0xC0000000};
+    if (!map_page_to_frame(process_directory.directory_va, STACK_BASE - PAGE_SIZE) || !map_page_to_frame(process_directory.directory_va, HEAP_BASE))
+        return false;
+
+    setup_new_stack((uint32_t)process_directory.directory_pa);
+    process_list[received_pid] = (process){READY, received_pid, (uint32_t)process_directory.directory_pa, 0xC0000000};
     return true;
 }
 
 void exit_process()
 {
     process_list[current_process].state = INVALID;
-    context_switch(0x90000000); // process dead, doesn't matter
+    context_switch(0xC0000000); // process dead, doesn't matter
 }

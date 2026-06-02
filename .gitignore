@@ -1,3 +1,6 @@
 # Build artifacts
 build/
 test.txt
+*.o
+*.bin
+*.elf

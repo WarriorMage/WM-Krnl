@@ -23,7 +23,7 @@ typedef struct tss_layout
     uint32_t unused[23];
 } __attribute__((packed)) tss_layout;
 
-tss_layout task_state_segment = {0, 0x90000, 0x10, {0}};
+tss_layout task_state_segment = {0, 0xFF000000, 0x10, {0}};
 
 void switch_kernel_stack(uint32_t new_kstack)
 {

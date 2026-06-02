@@ -75,7 +75,7 @@ $(BOOT): $(SRC_BOOT)/first.asm | $(BIN_DIR)
 
 # -------- Kernel C -> ELF Object --------
 $(OBJ_DIR)/%.o: $(SRC_KERNEL)/%.c | $(OBJ_DIR)
-	$(CC) $(CFLAGS) -c $< -o $@ -Wall -Wextra -g
+	$(CC) $(CFLAGS) -c $< -o $@ -g
 
 # -------- Kernel ASM -> ELF Object --------
 $(OBJ_DIR)/%.asm.o: $(SRC_KERNEL)/%.asm | $(OBJ_DIR)
@@ -103,7 +103,8 @@ $(IMAGE): $(BOOT) $(KERNEL) | $(IMG_DIR)
 # Skip 1 block (seek) of 512 bytes (block size) and write kernel.bin
 	dd if=$(KERNEL) of=$(IMAGE) bs=512 seek=1 conv=notrunc 2>/dev/null
 
-	dd if=test.txt of=$(IMAGE) bs=512 seek=100 count=2 conv=notrunc 2>/dev/null
+	dd if=src/test_processes/process_1.bin of=$(IMAGE) bs=512 seek=100 conv=notrunc 2>/dev/null
+	dd if=src/test_processes/process_2.bin of=$(IMAGE) bs=512 seek=101 conv=notrunc 2>/dev/null
 
 # -------- Run --------
 run: $(IMAGE)

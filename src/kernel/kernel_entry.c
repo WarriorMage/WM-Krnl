@@ -55,7 +55,7 @@ __attribute__((section(".bootstrap"))) void kernel_init(void)
     initiate_kernel_map();
     map_kernel_bootstrap();
     init_paging();
-    while (1) // fall through it this returns for some reason
+    while (1) // fall through if this returns for some reason
     {
     }
 }
@@ -64,14 +64,16 @@ __attribute__((section(".start"))) void kernel_cont(void)
 {
     clear_bss();
     read_memory_map_buffer();
-    setup_allocator();
-    if (!map_page_to_frame(return_page_directory(), 0xBFFFFFFF))
+    if(!setup_allocator())
+        kernel_panic();
+    if (!map_page_to_frame(PAGE_DIRECTORY_ADDR, 0xEFFFFFFF))
         kernel_panic();
     switch_to_virtual_stack();
 }
 
 void kernel_cont2(void)
 {
+    
     set_pit_frequency(100);
     setup_gdt();
     setup_gdtr();
@@ -80,23 +82,24 @@ void kernel_cont2(void)
     clear_screen();
     remap_pic();
     print_char_to_vga(10, 5, 'x', 0x07);
+    kernel_main();
     while (1)
     {
     }
+    
 }
 
 void kernel_main(void)
 {
-    // create_process(process_1);
-    // create_process(process_2);
-    // create_process(read_disk_stuff);
+    create_process((program_info){100, 1});
+    create_process((program_info){101, 1});
 
     void *heap_ptr = kmalloc(100);
     *(char *)heap_ptr = 'z';
     print_char_to_vga(7, 0, *(char *)heap_ptr, 0x07);
     kfree(heap_ptr);
 
-    set_interrupts();
+    // set_interrupts();
     while (1)
     {
     }
