@@ -47,21 +47,12 @@ void itoa(int32_t value, char *buffer)
     }
 }
 
-char *vga_memory_base;
-
 bool print_char_to_vga(uint8_t row, uint8_t col, uint8_t character, uint8_t color)
 {
-    static bool vga_mapped = false;
-    if (!vga_mapped)
-    {
-        if (!(vga_memory_base = map_frame_to_page(0xB8000)))
-            return false;
-        vga_mapped = true;
-    }
 
     if (row >= 25 || col >= 80)
         return false;
-    volatile char *dest_loc = (volatile char *)(vga_memory_base + 2 * col + 160 * row);
+    volatile char *dest_loc = (volatile char *)(VGA_VBASE + 2 * col + 160 * row);
     *dest_loc = character;
     *(dest_loc + 1) = color;
     return true;
@@ -147,4 +138,14 @@ void read_disk_stuff(void)
     read_sectors(100, 2, buffer);
     for (size_t i = 0; i < sizeof(buffer); ++i)
         print_char_to_vga(6 + (i / 80), i % 80, buffer[i], 0x07);
+}
+
+void kernel_panic(void)
+{
+    const char message[] = "KERNEL PANIC!";
+    for (size_t i = 0; message[i] != '\0'; ++i)
+        print_char_to_vga(0, i, message[i], 0x07);
+    while (true)
+    {
+    }
 }

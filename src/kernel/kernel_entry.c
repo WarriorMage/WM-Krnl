@@ -38,16 +38,6 @@ void set_pit_frequency(uint32_t frequency)
     outb(PIT_BASE_DATA, (divisor >> 8) & 0xFF);
 }
 
-void kernel_panic(void)
-{
-    const char message[] = "KERNEL PANIC!";
-    for (size_t i = 0; message[i] != '\0'; ++i)
-        print_char_to_vga(0, i, message[i], 0x07);
-    while (true)
-    {
-    }
-}
-
 // ENTRY POINT!
 __attribute__((section(".bootstrap"))) void kernel_init(void)
 {
@@ -64,16 +54,15 @@ __attribute__((section(".start"))) void kernel_cont(void)
 {
     clear_bss();
     read_memory_map_buffer();
-    if(!setup_allocator())
+    if (!setup_allocator())
         kernel_panic();
-    if (!map_page_to_frame(PAGE_DIRECTORY_ADDR, 0xEFFFFFFF))
+    if (!initialize_kstack_map(BOOTSTRAP_DIR_ADDR))
         kernel_panic();
     switch_to_virtual_stack();
 }
 
 void kernel_cont2(void)
 {
-    
     set_pit_frequency(100);
     setup_gdt();
     setup_gdtr();
@@ -81,12 +70,13 @@ void kernel_cont2(void)
     setup_idtr();
     clear_screen();
     remap_pic();
+    if (!map_region_to_bootstrap(VGA_PBASE, VGA_VBASE, 32 * 1024))
+        kernel_panic();
     print_char_to_vga(10, 5, 'x', 0x07);
     kernel_main();
     while (1)
     {
     }
-    
 }
 
 void kernel_main(void)
@@ -99,7 +89,7 @@ void kernel_main(void)
     print_char_to_vga(7, 0, *(char *)heap_ptr, 0x07);
     kfree(heap_ptr);
 
-    // set_interrupts();
+    set_interrupts();
     while (1)
     {
     }

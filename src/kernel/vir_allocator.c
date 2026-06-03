@@ -117,10 +117,10 @@ bool add_new_page(void)
 {
     static size_t heap_page_number = 0;
     // why am i protecting just the stack top instead of the entire region? fix this
-    if (heap_page_number >= ((STACK_BASE - HEAP_BASE) / PAGE_SIZE))
+    if (heap_page_number >= (KHEAP_END / PAGE_SIZE))
         return false;
 
-    uint32_t heap_region = HEAP_BASE + heap_page_number * PAGE_SIZE;
+    uint32_t heap_region = KHEAP_BASE + heap_page_number * PAGE_SIZE;
     if (!map_page_to_frame(PAGE_DIRECTORY_ADDR, heap_region))
         return false;
     

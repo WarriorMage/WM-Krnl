@@ -22,7 +22,7 @@ init_paging:
 section .text
 
 switch_to_virtual_stack:
-    mov esp, 0xF0000000
+    mov esp, 0xFFC00000
     jmp kernel_cont2
 
 load_fault_virtual_address:

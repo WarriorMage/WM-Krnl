@@ -2,7 +2,9 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "phy_allocator.h"
+#include "vir_allocator.h"
 #include "paging.h"
+#include "sample_processes.h"
 
 // high 20 bits for frame number, next 12 bits for flags, format:
 // 3 bits for OS use |
@@ -31,32 +33,37 @@ uint32_t map_page_to_frame(page_directory_entry *directory, uint32_t fault_addre
     uint32_t allocated_frame = (uint32_t)allocate_frame();
     if (!allocated_frame)
         return 0;
+    page_table_entry *table_va;
 
     if (!(directory[DIRECTORY_INDEX(fault_address)] & IS_PRESENT))
     {
-        page_table_entry *new_table = (page_table_entry *)allocate_frame();
-        if (!new_table)
+        uint32_t new_table_pa = allocate_frame();
+        if (!new_table_pa)
+            return false;
+        table_va = map_frame_to_page(new_table_pa);
+        if (!table_va)
             return false;
         for (size_t i = 0; i < PAGE_TABLE_SIZE; ++i)
-            new_table[i] = 0; // Zero the entries or cpu may think unmapped entries as valid
+            table_va[i] = 0; // Zero the entries or cpu may think unmapped entries as valid
 
-        directory[DIRECTORY_INDEX(fault_address)] = (uint32_t)new_table | IS_PRESENT | IS_WRITABLE;
+        directory[DIRECTORY_INDEX(fault_address)] = (uint32_t)new_table_pa | IS_PRESENT | IS_WRITABLE;
+    }
+    else
+    {
+        uint32_t table_pa = (uint32_t)directory[DIRECTORY_INDEX(fault_address)] & ~0xFFF;
+        table_va = map_frame_to_page(table_pa);
+        if (!table_va)
+            return false;
     }
 
-    page_table_entry *table = (page_table_entry *)((uint32_t)directory[DIRECTORY_INDEX(fault_address)] & ~0xFFF);
-
-    table[PAGE_INDEX(fault_address)] = allocated_frame | IS_PRESENT | IS_WRITABLE;
+    table_va[PAGE_INDEX(fault_address)] = allocated_frame | IS_PRESENT | IS_WRITABLE;
     return allocated_frame;
 }
 
 void page_fault_handler(void)
 {
-    uint32_t fault_address = load_fault_virtual_address() & ~0xFFF;
-    map_page_to_frame(PAGE_DIRECTORY_ADDR, fault_address);
-    // later add code to terminate the process if mapping failed
+    // kernel_panic();
 }
-
-#define BOOTSTRAP_DIR_ADDR 0x180000
 
 __attribute__((section(".bootstrap"))) void setup_page_directory_bootstrap(void)
 {
@@ -83,15 +90,59 @@ size_t residue(size_t num1, size_t num2)
 extern char __bootstrap_end;   // physical kernel address
 #define KERNEL_TABLE_ADDR 0x190000
 
+bool initialize_kstack_map(page_directory_entry *process_directory)
+{
+    // Both end and start addresses are both 4 KB aligned, also it only takes 1 table
+    // since the stack grows downward, the 'end' is the 'start' in address space
+    const size_t pages = (KSTACK_BASE - KSTACK_END) / PAGE_SIZE;
+    for (size_t i = 0; i < pages; ++i)
+    {
+        if (!map_page_to_frame(process_directory, (KSTACK_END + i * PAGE_SIZE)))
+            return false;
+    }
+    return true;
+}
+
 void map_kernel_into_process(page_directory_entry *process_directory)
 {
     const size_t base_index = KERNEL_BASE / (PAGE_SIZE * PAGE_TABLE_SIZE);
-    const size_t end_index = (size_t)(&__kernel_end - 1) / (PAGE_SIZE * PAGE_TABLE_SIZE);
+    const size_t end_index = (PAGE_MAP_END - 1) / (PAGE_SIZE * PAGE_TABLE_SIZE);
     const uint16_t flags = IS_PRESENT | IS_WRITABLE;
 
     size_t i = base_index;
     for (; i <= end_index; ++i)
-        process_directory[i] = (uint32_t)(KERNEL_TABLE_ADDR + ((i - base_index) * PAGE_TABLE_SIZE * 4)) | (flags & 0xFFF);
+        process_directory[i] = (PAGE_DIRECTORY_ADDR)[i];
+}
+
+bool map_region_to_bootstrap(uint32_t base_physical, uint32_t base_virtual, size_t length_in_bytes)
+{
+    const uint32_t end_virtual = base_virtual + length_in_bytes - 1;
+    const size_t base_index = base_virtual / (PAGE_SIZE * PAGE_TABLE_SIZE);
+    const size_t end_index = end_virtual / (PAGE_SIZE * PAGE_TABLE_SIZE);
+
+    const size_t base_page = (base_virtual / PAGE_SIZE) % PAGE_TABLE_SIZE;
+    const size_t end_page = (end_virtual / PAGE_SIZE) % PAGE_TABLE_SIZE;
+
+    page_directory_entry *bootstrap_directory = (page_directory_entry *)BOOTSTRAP_DIR_ADDR;
+    uint16_t flags = IS_PRESENT | IS_WRITABLE;
+
+    for (size_t i = base_index; i <= end_index; ++i)
+    {
+        if (!(bootstrap_directory[i] & IS_PRESENT))
+        {
+            uint32_t table_pa = (uint32_t)allocate_frame();
+            if (!table_pa)
+                return false;
+            bootstrap_directory[i] = table_pa | (flags & 0xFFF);
+        }
+
+        page_table_entry *table_va = (page_table_entry *)((uint32_t)PAGE_TABLE_BASE + (i * PAGE_SIZE));
+        for (size_t j = (i == base_index ? base_page : 0); j <= (i == end_index ? end_page : PAGE_TABLE_SIZE); ++j)
+        {
+            table_va[j] = base_physical + ((i - base_index) * PAGE_SIZE * PAGE_TABLE_SIZE) + ((j - base_page) * PAGE_SIZE) | flags;
+        }
+    }
+    return true;
 }
 
 __attribute__((section(".bootstrap"))) void map_kernel_bootstrap(void)
@@ -143,7 +194,7 @@ void *map_frame_to_page(uint32_t frame_address)
 {
     static size_t allocated_pages = 0;
     uint32_t page_to_return = (PAGE_MAP_BASE + allocated_pages * PAGE_SIZE);
-    if (page_to_return >= 0xFFC00000) // page table addresses
+    if (page_to_return >= PAGE_MAP_END) // page table addresses
         return NULL;
     uint16_t flags = IS_PRESENT | IS_WRITABLE;
 

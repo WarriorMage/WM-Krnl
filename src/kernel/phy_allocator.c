@@ -86,8 +86,8 @@ bool bit_get(uint8_t *base_address, size_t bit_position)
 
 #define FREE 0
 #define USED 1
-uint8_t *bitmap_pa = (uint8_t *)0x100000;
-uint8_t *bitmap_va;
+#define BITMAP_SIZE (128 * 1024) // max bitmap size in 4 GB systems
+uint8_t bitmap[BITMAP_SIZE];
 size_t bitmap_size_in_bytes;
 uint64_t max_address;
 
@@ -103,45 +103,31 @@ bool setup_allocator(void)
         max_address = UINT32_MAX;
 
     bitmap_size_in_bytes = align_down(max_address) / PAGE_SIZE / 8;
-    size_t bitmap_pages = bitmap_size_in_bytes / PAGE_SIZE + residue(bitmap_size_in_bytes, PAGE_SIZE);
-    for (size_t i = 0; i < bitmap_pages; ++i)
-    {
-        uint8_t *return_va = map_frame_to_page((uint32_t)bitmap_pa + i * PAGE_SIZE);
-        if (!return_va)
-            return false;
-        if(i == 0)
-            bitmap_va = return_va;
-    }
-
     for (size_t i = 0; i < bitmap_size_in_bytes; ++i)
     {
-        bitmap_va[i] = 0xFF; // it is ok if i miss out on using upto last 7 pages they will mostly be reserved anyways.
+        bitmap[i] = 0xFF; // it is ok if i miss out on using upto last 7 pages they will mostly be reserved anyways.
     }
 
     for (size_t i = 0; i < usable_region_count; ++i)
     {
         size_t j = align_up(usable_regions[i].base);
         for (; j < usable_regions[i].base + usable_regions[i].length; j += PAGE_SIZE)
-            bit_set(bitmap_va, j / PAGE_SIZE, FREE);
+            bit_set(bitmap, j / PAGE_SIZE, FREE);
 
         if (j > usable_regions[i].base + usable_regions[i].length) // if last page was partial
         {
             j -= PAGE_SIZE;
-            bit_set(bitmap_va, j / PAGE_SIZE, USED);
+            bit_set(bitmap, j / PAGE_SIZE, USED);
         }
     }
 
     for (size_t i = 0; i < 0x100000 / PAGE_SIZE; ++i)
     {
-        bit_set(bitmap_va, i, USED);
+        bit_set(bitmap, i, USED);
     }
 
     for (size_t i = align_down((uint32_t)&__kernel_start); i < (uint32_t)(&__kernel_end_lma + (&__bss_end - &__bss_start)); i += PAGE_SIZE)
-        bit_set(bitmap_va, i / PAGE_SIZE, USED);
-
-    size_t bitmap_base_page = (uint32_t)bitmap_pa / PAGE_SIZE;
-    for (size_t i = 0; i < (bitmap_size_in_bytes / PAGE_SIZE) + ((bitmap_size_in_bytes & 0xFFF) ? 1 : 0); ++i)
-        bit_set(bitmap_va, bitmap_base_page + i, USED);
+        bit_set(bitmap, i / PAGE_SIZE, USED);
 
     return true;
 }
@@ -150,9 +136,9 @@ void *allocate_frame(void)
 {
     for (size_t i = 0; i < bitmap_size_in_bytes * 8; ++i)
     {
-        if (bit_get(bitmap_va, i) == FREE)
+        if (bit_get(bitmap, i) == FREE)
         {
-            bit_set(bitmap_va, i, USED);
+            bit_set(bitmap, i, USED);
             return (void *)(i * PAGE_SIZE);
         }
     }
@@ -165,7 +151,7 @@ bool return_frame(uint32_t page_address)
     if ((page_address & 0xFFF) != 0)
         return false; // Not OS provided aligned page
 
-    if (page_address < 0x100000 || page_address >= max_address || (page_address >= align_down((uint32_t)&__kernel_start) && page_address < (uint32_t)(&__kernel_end_lma + (&__bss_end - &__bss_start))) || (page_address >= align_down((uint32_t)bitmap_pa) && page_address < (uint32_t)bitmap_pa + bitmap_size_in_bytes))
+    if (page_address < 0x100000 || page_address >= max_address || (page_address >= align_down((uint32_t)&__kernel_start) && page_address < (uint32_t)(&__kernel_end_lma + (&__bss_end - &__bss_start))))
         return false;
 
     bool returnable = false;
@@ -180,9 +166,9 @@ bool return_frame(uint32_t page_address)
     if (!returnable)
         return false;
     size_t bitmap_entry = page_address / PAGE_SIZE;
-    if (bit_get(bitmap_va, bitmap_entry) == FREE)
+    if (bit_get(bitmap, bitmap_entry) == FREE)
         return false; // Double free attempt
 
-    bit_set(bitmap_va, bitmap_entry, FREE);
+    bit_set(bitmap, bitmap_entry, FREE);
     return true;
 }
