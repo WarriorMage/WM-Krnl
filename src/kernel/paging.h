@@ -1,20 +1,23 @@
 #pragma once
 
+#include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
 
+#define KERNEL_BASE 0xC0000000 // virtual kernel address
 #define PAGE_SIZE 4096
+#define PAGE_TABLE_SIZE 1024
+
 #define KSTACK_END 0xFFBF0000
 #define KSTACK_BASE 0xFFC00000
 
 #define VGA_VBASE 0xFDFF8000
 
-#define PAGE_TABLE_SIZE 1024
 #define IS_PRESENT 0x1
 #define IS_WRITABLE 0x2
 #define USER_ALLOWED 0x4
 
-#define BOOTSTRAP_DIR_ADDR 0x180000
+#define BOOTSTRAP_DIR_ADDR 0x90000
 
 #define PAGE_MAP_BASE 0xFF000000
 #define PAGE_MAP_END  0xFF800000

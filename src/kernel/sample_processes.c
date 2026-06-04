@@ -96,32 +96,6 @@ void print_success(int process_id)
         print_char_to_vga(3, i, message[i], 0x07);
 }
 
-void process_1(void)
-{
-    uint8_t i = 0;
-    while (1)
-    {
-        for (volatile int j = 0; j < 10000000; j++)
-            ;
-        print_char_to_vga(3, (i == 0) ? 79 : i - 1, ' ', 0x07);
-        print_char_to_vga(3, i, 'A', 0x07);
-        i = (i + 1) % 80;
-    }
-}
-
-void process_2(void)
-{
-    uint8_t i = 79;
-    while (1)
-    {
-        for (volatile int j = 0; j < 10000000; j++)
-            ;
-        print_char_to_vga(4, (i + 1) % 80, ' ', 0x07);
-        print_char_to_vga(4, i, 'B', 0x07);
-        i = (i + 79) % 80;
-    }
-}
-
 void keyboard_input(void)
 {
     uint8_t keyboard_input_var;

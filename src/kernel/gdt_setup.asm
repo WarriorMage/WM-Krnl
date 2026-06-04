@@ -10,6 +10,6 @@ load_gdtr:
 
 load_tss:
     ; Selector: index in gdt << 3 | TI (GDT/LDT) | RPL
-    mov ax, 0x18
+    mov ax, 0x28
     ltr ax
     ret

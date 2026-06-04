@@ -6,6 +6,7 @@
 #include "sample_processes.h"
 #include "process.h"
 #include "paging.h"
+#include "syscall.h"
 
 #define MASTER_COMMAND 0x20
 #define MASTER_DATA 0x21   // Consists of the interrupt mask data for master
@@ -38,7 +39,9 @@ void remap_pic(void)
     outb(SLAVE_DATA, slave_masks);
 }
 
+#define DOUBLE_FAULT 8
 #define PAGE_FAULT 14
+#define SYSCALL 0x80
 
 void interrupt_dispatcher(uint8_t interrupt_number, uint32_t esp)
 {
@@ -57,6 +60,10 @@ void interrupt_dispatcher(uint8_t interrupt_number, uint32_t esp)
         break;
     case MASTER_BASE + 1:
         keyboard_main();
+        break;
+    case SYSCALL:
+        syscall_handler((uint32_t *)esp); // type correct?
+        break;
     }
     if (interrupt_number >= MASTER_BASE && interrupt_number < SLAVE_BASE + 8)
     {
@@ -89,20 +96,28 @@ idt_entry interrupt_descriptor_table[IDT_SIZE];
 idtr idtr_descriptor;
 
 #define KERNEL_CODE_SEGMENT 0x08
+#define INTERRUPT_GATE 0x8E
+#define TRAP_GATE 0x8F
+#define SYSCALL_GATE 0xEE
 
-void fill_idt_entry(uint16_t index, uint32_t handler)
+void fill_idt_entry(uint16_t index, uint32_t handler, uint16_t segment_selector, uint8_t type_attr)
 {
     interrupt_descriptor_table[index].offset_low = handler & 0xFFFF;
-    interrupt_descriptor_table[index].selector = KERNEL_CODE_SEGMENT;
+    interrupt_descriptor_table[index].selector = segment_selector;
     interrupt_descriptor_table[index].zero = 0;
-    interrupt_descriptor_table[index].type_attr = 0x8E;
+    interrupt_descriptor_table[index].type_attr = type_attr;
     interrupt_descriptor_table[index].offset_high = handler >> 16;
 }
 
 void setup_idt(void)
 {
-    for (unsigned short i = 0; i < IDT_SIZE; ++i)
-        fill_idt_entry(i, (uint32_t)isr_table[i]);
+    unsigned short i = 0;
+    for (; i <= 0x2F; ++i)
+        fill_idt_entry(i, (uint32_t)isr_table[i], KERNEL_CODE_SEGMENT, INTERRUPT_GATE);
+    for (; i < IDT_SIZE; ++i)
+        fill_idt_entry(i, (uint32_t)isr_table[i], KERNEL_CODE_SEGMENT, TRAP_GATE);
+
+    fill_idt_entry(0x80, (uint32_t)isr_table[0x80], KERNEL_CODE_SEGMENT, SYSCALL_GATE);
 }
 
 void setup_idtr(void)

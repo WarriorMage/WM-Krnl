@@ -16,6 +16,8 @@
 extern char __bss_start;
 extern char __bss_end;
 
+int test_data_value = 73;
+
 void clear_bss(void)
 {
 
@@ -56,10 +58,12 @@ __attribute__((section(".start"))) void kernel_cont(void)
     read_memory_map_buffer();
     if (!setup_allocator())
         kernel_panic();
-    if (!initialize_kstack_map(BOOTSTRAP_DIR_ADDR))
+    if (!initialize_kstack_map((page_directory_entry *)BOOTSTRAP_DIR_ADDR))
         kernel_panic();
     switch_to_virtual_stack();
 }
+
+void kernel_main(void); // SHUT UP COMPILER!
 
 void kernel_cont2(void)
 {

@@ -35,7 +35,7 @@ KERNEL  = $(BIN_DIR)/kernel.bin
 IMAGE   = $(IMG_DIR)/os.img
 
 # -------- Sources ------
-C_FILES   = kernel_entry.c keyboard.c interrupt_handler.c gdt_setup.c process.c sample_processes.c phy_allocator.c paging.c vir_allocator.c read_disk.c
+C_FILES   = kernel_entry.c keyboard.c interrupt_handler.c gdt_setup.c process.c sample_processes.c phy_allocator.c paging.c vir_allocator.c read_disk.c syscall.c
 ASM_FILES = interrupt_handler.asm io.asm gdt_setup.asm process.asm paging.asm
 
 C_SRC   = $(addprefix $(SRC_KERNEL)/, $(C_FILES))
@@ -79,7 +79,7 @@ $(OBJ_DIR)/%.o: $(SRC_KERNEL)/%.c | $(OBJ_DIR)
 
 # -------- Kernel ASM -> ELF Object --------
 $(OBJ_DIR)/%.asm.o: $(SRC_KERNEL)/%.asm | $(OBJ_DIR)
-	$(AS) $(ASFLAGS) $< -o $@ -g
+	$(AS) $(ASFLAGS) $< -o $@ -g -F dwarf
 
 # -------- Link Kernel -> Raw binary --------
 $(BIN_DIR)/kernel.elf: $(OBJ_SRC) | $(BIN_DIR)

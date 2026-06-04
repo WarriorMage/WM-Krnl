@@ -1,4 +1,4 @@
-ENTRY(process_2)
+ENTRY(process_1)
 
 SECTIONS
 {

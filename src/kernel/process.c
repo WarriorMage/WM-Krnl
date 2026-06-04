@@ -31,7 +31,7 @@ process process_list[MAX_PROCESSES];
 // Not supposed to return
 void context_switch_asm(uint32_t new_directory_address, uint32_t new_stack_top);
 
-uint8_t current_process = 0;
+uint16_t current_process = 0;
 
 // fix infinite loop when no other process is ready
 
@@ -61,7 +61,6 @@ void switch_cr3(uint32_t new_directory_pa);
 bool load_program_to_memory(directory_location process_directory, program_info program)
 {
     size_t page_count = program.sector_count / 8 + residue(program.sector_count, 8); // page size = 8 * sector size
-    uint32_t current_directory = return_page_directory();                            // returns pa obviously va is just 0xFFFFF000
     uint32_t allocated_frame;
     void *base_page;
 

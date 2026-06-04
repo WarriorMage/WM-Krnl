@@ -35,9 +35,13 @@ uint32_t map_page_to_frame(page_directory_entry *directory, uint32_t fault_addre
         return 0;
     page_table_entry *table_va;
 
+    uint16_t flags = IS_PRESENT | IS_WRITABLE;
+    if(fault_address < KERNEL_BASE)
+        flags |= USER_ALLOWED;
+
     if (!(directory[DIRECTORY_INDEX(fault_address)] & IS_PRESENT))
     {
-        uint32_t new_table_pa = allocate_frame();
+        uint32_t new_table_pa = (uint32_t)allocate_frame();
         if (!new_table_pa)
             return false;
         table_va = map_frame_to_page(new_table_pa);
@@ -46,7 +50,7 @@ uint32_t map_page_to_frame(page_directory_entry *directory, uint32_t fault_addre
         for (size_t i = 0; i < PAGE_TABLE_SIZE; ++i)
             table_va[i] = 0; // Zero the entries or cpu may think unmapped entries as valid
 
-        directory[DIRECTORY_INDEX(fault_address)] = (uint32_t)new_table_pa | IS_PRESENT | IS_WRITABLE;
+        directory[DIRECTORY_INDEX(fault_address)] = (uint32_t)new_table_pa | flags;
     }
     else
     {
@@ -56,7 +60,7 @@ uint32_t map_page_to_frame(page_directory_entry *directory, uint32_t fault_addre
             return false;
     }
 
-    table_va[PAGE_INDEX(fault_address)] = allocated_frame | IS_PRESENT | IS_WRITABLE;
+    table_va[PAGE_INDEX(fault_address)] = allocated_frame | flags;
     return allocated_frame;
 }
 
@@ -86,9 +90,7 @@ size_t residue(size_t num1, size_t num2)
     return ((num1) % num2 == 0) ? 0 : 1;
 }
 
-#define KERNEL_BASE 0xC0000000 // virtual kernel address
 extern char __bootstrap_end;   // physical kernel address
-#define KERNEL_TABLE_ADDR 0x190000
 
 bool initialize_kstack_map(page_directory_entry *process_directory)
 {
@@ -107,7 +109,6 @@ void map_kernel_into_process(page_directory_entry *process_directory)
 {
     const size_t base_index = KERNEL_BASE / (PAGE_SIZE * PAGE_TABLE_SIZE);
     const size_t end_index = (PAGE_MAP_END - 1) / (PAGE_SIZE * PAGE_TABLE_SIZE);
-    const uint16_t flags = IS_PRESENT | IS_WRITABLE;
 
     size_t i = base_index;
     for (; i <= end_index; ++i)
@@ -139,7 +140,7 @@ bool map_region_to_bootstrap(uint32_t base_physical, uint32_t base_virtual, size
         page_table_entry *table_va = (page_table_entry *)((uint32_t)PAGE_TABLE_BASE + (i * PAGE_SIZE));
         for (size_t j = (i == base_index ? base_page : 0); j <= (i == end_index ? end_page : PAGE_TABLE_SIZE); ++j)
         {
-            table_va[j] = base_physical + ((i - base_index) * PAGE_SIZE * PAGE_TABLE_SIZE) + ((j - base_page) * PAGE_SIZE) | flags;
+            table_va[j] = (base_physical + ((i - base_index) * PAGE_SIZE * PAGE_TABLE_SIZE) + ((j - base_page) * PAGE_SIZE)) | flags;
         }
     }
     return true;
@@ -152,10 +153,11 @@ __attribute__((section(".bootstrap"))) void map_kernel_bootstrap(void)
     const uint16_t flags = IS_PRESENT | IS_WRITABLE;
 
     page_directory_entry *bootstrap_directory = (page_directory_entry *)BOOTSTRAP_DIR_ADDR;
+    uint32_t kernel_table_pa = ((uint32_t)&__kernel_end_lma + 4095) & ~0xFFF;
 
     size_t i = base_index;
     for (; i <= end_index; ++i)
-        bootstrap_directory[i] = (uint32_t)(KERNEL_TABLE_ADDR + ((i - base_index) * PAGE_TABLE_SIZE * 4)) | (flags & 0xFFF);
+        bootstrap_directory[i] = (uint32_t)(kernel_table_pa + ((i - base_index) * PAGE_TABLE_SIZE * 4)) | (flags & 0xFFF);
 }
 
 __attribute__((section(".bootstrap"))) void initiate_kernel_map(void) // creates kernel mapping page tables
@@ -166,9 +168,11 @@ __attribute__((section(".bootstrap"))) void initiate_kernel_map(void) // creates
     uint32_t end_table = end_page / PAGE_TABLE_SIZE;
     uint16_t flags = IS_PRESENT | IS_WRITABLE;
 
+    uint32_t base_table_pa = ((uint32_t)&__kernel_end_lma + 4095) & ~0xFFF;
+
     for (size_t i = base_table; i <= end_table; ++i)
     {
-        page_table_entry *kernel_map_table = (page_table_entry *)(KERNEL_TABLE_ADDR + (4 * PAGE_TABLE_SIZE * (i - base_table))); // size of PTE = 4
+        page_table_entry *kernel_map_table = (page_table_entry *)(base_table_pa + (4 * PAGE_TABLE_SIZE * (i - base_table))); // size of PTE = 4
         size_t start_index = 0, end_index = 1023;
 
         if (i == base_table)

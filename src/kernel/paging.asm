@@ -11,7 +11,7 @@ extern kernel_cont2
 section .bootstrap
 
 init_paging:
-    mov eax, 0x180000
+    mov eax, 0x90000
     mov cr3, eax
     mov eax, cr0
     or eax, 0x8000_0000

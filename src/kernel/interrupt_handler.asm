@@ -16,6 +16,14 @@ global after_return_32
 
 %macro ISR 1
 isr_%1:
+    %if (%1 < 32)
+        cli
+        hlt
+    %endif
+    push ds
+    push es
+    push fs
+    push gs
     pushad
     push esp    ; Pushes the original esp value before the push
     push %1
@@ -23,6 +31,10 @@ isr_%1:
     add esp, 2 * 4
     after_return_%1:
     popad
+    pop gs
+    pop fs
+    pop es
+    pop ds
     %if (%1 == 8) || (%1 >= 10 && %1 <= 14) || (%1 == 17)
         add esp, 4 ; CPU pushes an additional error code for these interrupt numbers
         ; pop it or else iretd will get corrupted.

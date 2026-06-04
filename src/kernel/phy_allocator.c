@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
+#include "process.h"
 #include "paging.h"
 
 #define MEMORY_MAP_BUFFER 0x5000
@@ -91,6 +92,8 @@ uint8_t bitmap[BITMAP_SIZE];
 size_t bitmap_size_in_bytes;
 uint64_t max_address;
 
+size_t kernel_table_pages;
+
 bool setup_allocator(void)
 {
     for (size_t i = 0; i < memory_map_entry_count; ++i)
@@ -120,13 +123,11 @@ bool setup_allocator(void)
             bit_set(bitmap, j / PAGE_SIZE, USED);
         }
     }
+    bit_set(bitmap, BOOTSTRAP_DIR_ADDR / PAGE_SIZE, USED); // save bootstrap directory
 
-    for (size_t i = 0; i < 0x100000 / PAGE_SIZE; ++i)
-    {
-        bit_set(bitmap, i, USED);
-    }
+    kernel_table_pages = ((size_t)(&__kernel_end - 1) / (PAGE_SIZE * PAGE_TABLE_SIZE)) - (KERNEL_BASE / (PAGE_SIZE * PAGE_TABLE_SIZE)) + 1;
 
-    for (size_t i = align_down((uint32_t)&__kernel_start); i < (uint32_t)(&__kernel_end_lma + (&__bss_end - &__bss_start)); i += PAGE_SIZE)
+    for (size_t i = align_down((uint32_t)&__kernel_start); i < align_up((uint32_t)&__kernel_end_lma) + (kernel_table_pages * PAGE_SIZE); i += PAGE_SIZE)
         bit_set(bitmap, i / PAGE_SIZE, USED);
 
     return true;
@@ -146,18 +147,18 @@ void *allocate_frame(void)
     return NULL; // Protection not enforced, just please don't use this :)
 }
 
-bool return_frame(uint32_t page_address)
+bool return_frame(uint32_t frame_address)
 {
-    if ((page_address & 0xFFF) != 0)
+    if ((frame_address & 0xFFF) != 0)
         return false; // Not OS provided aligned page
 
-    if (page_address < 0x100000 || page_address >= max_address || (page_address >= align_down((uint32_t)&__kernel_start) && page_address < (uint32_t)(&__kernel_end_lma + (&__bss_end - &__bss_start))))
-        return false;
+    if ((frame_address == BOOTSTRAP_DIR_ADDR && current_process == 0) || frame_address >= max_address || (frame_address >= align_down((uint32_t)&__kernel_start) && frame_address < (uint32_t)&__kernel_end_lma + (kernel_table_pages * PAGE_SIZE)))
+        return false; // bootstrap dir freeable after out of bootstrap
 
     bool returnable = false;
     for (size_t i = 0; i < usable_region_count; ++i)
     {
-        if (page_address >= usable_regions[i].base && page_address < align_down(usable_regions[i].base + usable_regions[i].length))
+        if (frame_address >= usable_regions[i].base && frame_address < align_down(usable_regions[i].base + usable_regions[i].length))
         {
             returnable = true;
             break;
@@ -165,7 +166,7 @@ bool return_frame(uint32_t page_address)
     }
     if (!returnable)
         return false;
-    size_t bitmap_entry = page_address / PAGE_SIZE;
+    size_t bitmap_entry = frame_address / PAGE_SIZE;
     if (bit_get(bitmap, bitmap_entry) == FREE)
         return false; // Double free attempt
 

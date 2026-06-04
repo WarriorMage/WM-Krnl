@@ -44,5 +44,5 @@ SECTIONS
     }
 
     __kernel_end = .;
-    __kernel_end_lma = LOADADDR(.data) + SIZEOF(.data); /* doesn't account for bss for now as it doesn't occupy space in binary, fix in runtime. */
+    __kernel_end_lma = LOADADDR(.data) + SIZEOF(.data) + SIZEOF(.bss); /* contains the runtime end including .bss, the kernel page mapping places .bss physically right after .data */
 }

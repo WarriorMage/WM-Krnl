@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include "gdt_setup.h"
+#include "paging.h"
 
 typedef struct gdt_entry
 {
@@ -11,7 +12,7 @@ typedef struct gdt_entry
     uint8_t base_high;
 } __attribute__((packed)) gdt_entry;
 
-gdt_entry global_descriptor_table[4];
+gdt_entry global_descriptor_table[6];
 
 // TSS is used for variety of purposes by hardware but we don't need it so we don't
 // care about 96 out 104 bytes so we pad them with zeroes.
@@ -23,12 +24,7 @@ typedef struct tss_layout
     uint32_t unused[23];
 } __attribute__((packed)) tss_layout;
 
-tss_layout task_state_segment = {0, 0xFF000000, 0x10, {0}};
-
-void switch_kernel_stack(uint32_t new_kstack)
-{
-    task_state_segment.esp0 = new_kstack;
-}
+tss_layout task_state_segment = {0, KSTACK_BASE, 0x10, {0}};
 
 void fill_gdt_entry(uint8_t entry_number, uint32_t base, uint32_t limit, uint8_t access, uint8_t flags)
 {
@@ -50,9 +46,13 @@ void setup_gdt(void)
     fill_gdt_entry(1, 0, 0xFFFFF, 0x9A, 0x0C);
     // Kernel data segment
     fill_gdt_entry(2, 0, 0xFFFFF, 0x92, 0x0C);
+    // User code segment
+    fill_gdt_entry(3, 0, 0xFFFFF, 0xFA, 0x0C);
+    // User data segment
+    fill_gdt_entry(4, 0, 0xFFFFF, 0xF2, 0x0C);
     // Task state segment, 9 in 0x89 = 1001: Available 32 bit TSS (11 for busy)
     // Those 4 access bytes interpreted differently in system segments like TSS.
-    fill_gdt_entry(3, (uint32_t)&task_state_segment, sizeof(tss_layout) - 1, 0x89, 0x00);
+    fill_gdt_entry(5, (uint32_t)&task_state_segment, sizeof(tss_layout) - 1, 0x89, 0x00);
 }
 
 typedef struct gdtr
