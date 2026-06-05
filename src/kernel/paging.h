@@ -49,6 +49,7 @@ void map_kernel_into_process(page_directory_entry *process_directory);
 
 uint32_t map_page_to_frame(page_directory_entry *process_directory, uint32_t fault_address);
 void *map_frame_to_page(uint32_t frame_address);
+uint8_t unmap_mftp_page(void *page_address);
 
 void switch_to_virtual_stack(void);
 

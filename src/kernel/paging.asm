@@ -33,3 +33,10 @@ load_fault_virtual_address:
 return_page_directory:
     mov eax, cr3
     ret
+
+global test
+
+test:
+    mov eax, cr3
+    mov cr3, eax
+    ret

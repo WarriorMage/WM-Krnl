@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include "process.h"
 #include "paging.h"
+#include "phy_allocator.h"
 
 #define MEMORY_MAP_BUFFER 0x5000
 
@@ -85,8 +86,6 @@ bool bit_get(uint8_t *base_address, size_t bit_position)
     return (*target_byte >> target_bit) & 1;
 }
 
-#define FREE 0
-#define USED 1
 #define BITMAP_SIZE (128 * 1024) // max bitmap size in 4 GB systems
 uint8_t bitmap[BITMAP_SIZE];
 size_t bitmap_size_in_bytes;
@@ -123,6 +122,7 @@ bool setup_allocator(void)
             bit_set(bitmap, j / PAGE_SIZE, USED);
         }
     }
+    bit_set(bitmap, 0, USED); // leave the first frame unallocated, even if not reserved, use for error catching
     bit_set(bitmap, BOOTSTRAP_DIR_ADDR / PAGE_SIZE, USED); // save bootstrap directory
 
     kernel_table_pages = ((size_t)(&__kernel_end - 1) / (PAGE_SIZE * PAGE_TABLE_SIZE)) - (KERNEL_BASE / (PAGE_SIZE * PAGE_TABLE_SIZE)) + 1;

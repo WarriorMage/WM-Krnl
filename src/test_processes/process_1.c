@@ -5,7 +5,7 @@
 void process_1(void)
 {
     uint8_t i = 0;
-    while (1)
+    for (int k = 0; k < 500; ++k)
     {
         for (volatile int j = 0; j < 10000000; j++)
             ;
@@ -13,4 +13,5 @@ void process_1(void)
         print_buffer_to_vga(3, i, "A", 0x07, 1);
         i = (i + 1) % 80;
     }
+    exit_process();
 }

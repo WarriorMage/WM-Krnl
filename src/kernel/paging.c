@@ -25,8 +25,10 @@ __attribute__((section(".bootstrap"))) page_table_entry *setup_bootstrap_table(v
 
 extern uint32_t __kernel_start, __kernel_end, __kernel_end_lma;
 #define PAGE_DIRECTORY_SIZE (1024 * 1024) // one directory entry refers to 4 MB
-#define DIRECTORY_INDEX(x) (x >> 22)
-#define PAGE_INDEX(x) ((x >> 12) & 0x3FF) // only take 10 bits
+#define DIRECTORY_INDEX(x) ((x) >> 22)
+#define PAGE_INDEX(x) (((x) >> 12) & 0x3FF) // only take 10 bits
+
+void test(void);
 
 uint32_t map_page_to_frame(page_directory_entry *directory, uint32_t fault_address)
 {
@@ -36,7 +38,7 @@ uint32_t map_page_to_frame(page_directory_entry *directory, uint32_t fault_addre
     page_table_entry *table_va;
 
     uint16_t flags = IS_PRESENT | IS_WRITABLE;
-    if(fault_address < KERNEL_BASE)
+    if (fault_address < KERNEL_BASE)
         flags |= USER_ALLOWED;
 
     if (!(directory[DIRECTORY_INDEX(fault_address)] & IS_PRESENT))
@@ -61,6 +63,8 @@ uint32_t map_page_to_frame(page_directory_entry *directory, uint32_t fault_addre
     }
 
     table_va[PAGE_INDEX(fault_address)] = allocated_frame | flags;
+    unmap_mftp_page((void *)table_va);
+    test();
     return allocated_frame;
 }
 
@@ -90,7 +94,7 @@ size_t residue(size_t num1, size_t num2)
     return ((num1) % num2 == 0) ? 0 : 1;
 }
 
-extern char __bootstrap_end;   // physical kernel address
+extern char __bootstrap_end; // physical kernel address
 
 bool initialize_kstack_map(page_directory_entry *process_directory)
 {
@@ -194,12 +198,29 @@ __attribute__((section(".bootstrap"))) void initiate_kernel_map(void) // creates
     }
 }
 
+uint8_t bit_page_map[(PAGE_MAP_END - PAGE_MAP_BASE) / PAGE_SIZE / 8];
+
 void *map_frame_to_page(uint32_t frame_address)
 {
-    static size_t allocated_pages = 0;
-    uint32_t page_to_return = (PAGE_MAP_BASE + allocated_pages * PAGE_SIZE);
-    if (page_to_return >= PAGE_MAP_END) // page table addresses
+    int16_t selected_bit = -1;
+    static int16_t prev_selection = -1;
+    int16_t i = prev_selection;
+    do
+    {
+        i = (i + 1) % (sizeof(bit_page_map) * 8);
+        if (bit_get(bit_page_map, i) == FREE)
+        {
+            selected_bit = i;
+            bit_set(bit_page_map, i, USED);
+            break;
+        }
+    } while (i != prev_selection);
+
+    if (selected_bit == -1)
         return NULL;
+    prev_selection = selected_bit;
+
+    uint32_t page_to_return = (PAGE_MAP_BASE + selected_bit * PAGE_SIZE);
     uint16_t flags = IS_PRESENT | IS_WRITABLE;
 
     size_t directory_index = DIRECTORY_INDEX(page_to_return);
@@ -213,8 +234,41 @@ void *map_frame_to_page(uint32_t frame_address)
     }
 
     table[PAGE_INDEX(page_to_return)] = frame_address | (flags & 0xFFF);
-    ++allocated_pages;
     return (void *)page_to_return;
+}
+
+uint8_t unmap_mftp_page(void *page_address)
+{
+    uint32_t page_to_free = align_down((uint32_t)page_address);
+    if (page_to_free < PAGE_MAP_BASE || page_to_free > PAGE_MAP_END)
+        return 1; // invalid pointer
+
+    uint16_t bit_in_map = (page_to_free - PAGE_MAP_BASE) / PAGE_SIZE;
+    if (bit_get(bit_page_map, bit_in_map) == FREE)
+        return 2; // double free attempt
+
+    bit_set(bit_page_map, bit_in_map, FREE);
+
+    size_t directory_index = DIRECTORY_INDEX(page_to_free);
+    page_directory_entry *current_directory = (page_directory_entry *)PAGE_DIRECTORY_ADDR;
+    page_table_entry *table = (page_table_entry *)((uint32_t)PAGE_TABLE_BASE + (4 * PAGE_TABLE_SIZE * directory_index));
+    table[PAGE_INDEX(page_to_free)] = 0;
+
+    bool table_free = true;
+    for (size_t i = 0; i < PAGE_TABLE_SIZE; ++i)
+    {
+        if (table[i] != 0)
+        {
+            table_free = false;
+            break;
+        }
+    }
+    if (table_free)
+    {
+        return_frame(current_directory[directory_index] & (~0xFFF));
+        current_directory[directory_index] = 0;
+    }
+    return 0;
 }
 
 directory_location setup_page_directory_process(void)
@@ -231,4 +285,14 @@ directory_location setup_page_directory_process(void)
     directory_va[PAGE_TABLE_SIZE - 1] = (uint32_t)directory | ((IS_PRESENT | IS_WRITABLE) & 0xFFF);
 
     return (directory_location){directory, directory_va};
+}
+
+uint32_t get_frame(void *page_address){
+    page_table_entry *table_address = PAGE_TABLE_BASE + DIRECTORY_INDEX((uint32_t)page_address) * PAGE_TABLE_SIZE;
+    page_table_entry table_entry = table_address[PAGE_INDEX((uint32_t)page_address)];
+
+    if(!(table_entry & IS_PRESENT))
+        return 0; // bug catching frame, yay!
+    else
+        return table_entry & (~0xFFF);
 }

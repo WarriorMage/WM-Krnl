@@ -1,13 +1,13 @@
 section .text
 
-extern setup_new_stack
-extern context_switch_asm
-extern switch_cr3
+global setup_new_stack
+global context_switch_asm
+extern dead_process_cleanup
 
-switch_cr3:
-    mov eax, [esp + 4]
-    mov cr3, eax
-    ret
+; switch_cr3:
+;     mov eax, [esp + 4]
+;     mov cr3, eax
+;     ret
 
 setup_new_stack:
     mov ecx, cr3
@@ -40,4 +40,5 @@ context_switch_asm:
     mov eax, [esp + 4]
     mov esp, [esp + 8]
     mov cr3, eax
+    call dead_process_cleanup
     jmp after_return_32

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdint.h>
+#include "syscall.h"
 
 typedef struct program_info
 {
@@ -13,3 +14,4 @@ extern uint16_t current_process;
 void initialize_kernel_process(void);
 bool create_process(program_info program);
 void context_switch(uint32_t current_stack_top);
+int32_t __sys_exit_process(syscall_args *arguments);

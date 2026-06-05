@@ -1,24 +1,16 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
+#include "syscall.h"
+#include "process.h"
 #include "paging.h"
 #include "vir_allocator.h"
-
-typedef struct syscall_args
-{
-    uint32_t arg_1; // Argument 1 - 6 till bottom
-    uint32_t arg_2; // Don't use ebp in syscall user wrapper till leave where the old
-    uint32_t arg_3; // one is restored
-    uint32_t arg_4;
-    uint32_t arg_5;
-    uint32_t arg_6;
-} syscall_args;
 
 typedef int32_t (*syscall_t)(syscall_args *);
 
 int32_t __sys_print_buffer_to_vga(syscall_args *arguments);
 
-const syscall_t syscall_table[5] = {NULL, NULL, NULL, NULL, &__sys_print_buffer_to_vga};
+static const syscall_t syscall_table[5] = {NULL, &__sys_exit_process, NULL, NULL, &__sys_print_buffer_to_vga};
 
 // arg address returns address just under pushad in ISR
 void syscall_handler(uint32_t *arg_address)
@@ -26,7 +18,7 @@ void syscall_handler(uint32_t *arg_address)
     syscall_args arguments;
     int32_t return_value;
     uint32_t syscall_number = *(arg_address + 7); // eax
-    if (syscall_number != 4)                      // only one defined till now
+    if (syscall_number != 1 && syscall_number != 4)   // only two defined till now
         return_value = -1;
     else
     {
