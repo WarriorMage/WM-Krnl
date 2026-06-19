@@ -1,6 +1,6 @@
 #include <stdint.h>
-#include "gdt_setup.h"
-#include "paging.h"
+#include "cpu/gdt_setup.h"
+#include "memory/paging.h"
 
 typedef struct gdt_entry
 {

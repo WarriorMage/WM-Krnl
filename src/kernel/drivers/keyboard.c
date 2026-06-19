@@ -3,8 +3,8 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
-#include "io.h"
-#include "interrupt_handler.h"
+#include "misc/io.h"
+#include "cpu/interrupt_handler.h"
 
 #define BUFFER_SIZE 128
 #define KB_DATA_PORT 0x60

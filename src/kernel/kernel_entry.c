@@ -3,15 +3,15 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
-#include "io.h"
-#include "gdt_setup.h"
-#include "interrupt_handler.h"
-#include "keyboard.h"
-#include "sample_processes.h"
-#include "process.h"
-#include "phy_allocator.h"
-#include "vir_allocator.h"
-#include "paging.h"
+#include "misc/io.h"
+#include "cpu/gdt_setup.h"
+#include "cpu/interrupt_handler.h"
+#include "drivers/keyboard.h"
+#include "misc/utilities.h"
+#include "process/process.h"
+#include "memory/phy_allocator.h"
+#include "memory/vir_allocator.h"
+#include "memory/paging.h"
 
 extern char __bss_start;
 extern char __bss_end;
@@ -41,7 +41,7 @@ void set_pit_frequency(uint32_t frequency)
 }
 
 // ENTRY POINT!
-__attribute__((section(".bootstrap"))) void kernel_init(void)
+__attribute__((section(".bootstrap_first"))) void kernel_init(void)
 {
     setup_page_directory_bootstrap();
     initiate_kernel_map();
@@ -76,15 +76,17 @@ void kernel_cont2(void)
     remap_pic();
     if (!map_region_to_bootstrap(VGA_PBASE, VGA_VBASE, 32 * 1024))
         kernel_panic();
-    print_char_to_vga(10, 5, 'x', 0x07);
     kernel_main();
     while (1)
     {
     }
 }
 
+#include "drivers/ata_driver.h"
+
 void kernel_main(void)
 {
+
     create_process((program_info){100, 1});
     create_process((program_info){101, 1});
 
@@ -92,6 +94,13 @@ void kernel_main(void)
     *(char *)heap_ptr = 'z';
     print_char_to_vga(7, 0, *(char *)heap_ptr, 0x07);
     kfree(heap_ptr);
+
+    char buf[512];
+
+    write_sectors(200, 1, "Hello World!");
+    read_sectors(200, 1, (void *)buf);
+
+    __sys_print_buffer_to_vga(&(syscall_args){10, 5, buf, 0x07, sizeof("Hello World!")});
 
     set_interrupts();
     while (1)

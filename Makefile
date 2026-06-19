@@ -1,50 +1,68 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 # These are not real files, run these rules even if an up to date file in the same name exists.
-.PHONY: all run debug clean
+.PHONY: all run debug clean clean_kernel clean_lib lib
 
 # -------- Tools --------
 CC      = i686-elf-gcc
 AS      = nasm
 EMU		= qemu-system-i386
+AR 		= i686-elf-ar
 
 # -------- Directories --------
 SRC_BOOT    = src/boot
 SRC_KERNEL  = src/kernel
+SRC_LIB		= src/lib
+SRC_PROC	= src/test_processes
 
-BUILD       = build
-OBJ_DIR     = $(BUILD)/obj
-BIN_DIR     = $(BUILD)/bin
-IMG_DIR     = $(BUILD)/img
+BUILD_BOOT   = build/boot
+BUILD_KERNEL = build/kernel
+BUILD_LIB    = build/lib
+BUILD_PROC   = build/test_processes
 
 # -------- Flags --------
 # -ffreestanding: Don't replace my code with libc code for optimizing, it doesn't exist
 # -fno-stack-protector: Modern compilers protect against "Stack Smashing" by adding a random number to the stack. When a function returns, it checks if that number is still there. If it's gone, it calls an error-handling function. Disable it we don't have any error-handler, or the random number creator.
 # -fno-pie: Use absolute addressing. Don't emit relative symbols in output, there
 # is no loader to decide the addresses.
-CFLAGS  = -ffreestanding -fno-pie -fno-stack-protector -O0 -Wall -Wextra
+KERNEL_CFLAGS  = -ffreestanding -fno-pie -fno-stack-protector -O0 -Wall -Wextra -Isrc/kernel
+LIB_CFLAGS  = -ffreestanding -fno-pie -fno-stack-protector -O0 -Wall -Wextra -Isrc/lib
 
 # Don't link the C runtime to setup argc, argv, entry point till main, we don't 
 # have it. Also use the 32 bit linker with ELF input.
-LDFLAGS = -T src/linker.ld -nostdlib
+LDFLAGS = -T $(SRC_KERNEL)/linker.ld -nostdlib
 ASFLAGS = -f elf32
+ARFLAGS = rcs
 
 # -------- Files --------
-BOOT    = $(BIN_DIR)/first.bin
-KERNEL  = $(BIN_DIR)/kernel.bin
-IMAGE   = $(IMG_DIR)/os.img
+BOOT       = $(BUILD_BOOT)/bin/first.bin
+KERNEL_ELF = $(BUILD_KERNEL)/bin/kernel.elf
+KERNEL     = $(BUILD_KERNEL)/bin/kernel.bin
+IMAGE      = $(BUILD_KERNEL)/img/os.img
+LIBRARY    = $(BUILD_LIB)/ar/lib.a
 
-# -------- Sources ------
-C_FILES   = kernel_entry.c keyboard.c interrupt_handler.c gdt_setup.c process.c sample_processes.c phy_allocator.c paging.c vir_allocator.c read_disk.c syscall.c
-ASM_FILES = interrupt_handler.asm io.asm gdt_setup.asm process.asm paging.asm
-
-C_SRC   = $(addprefix $(SRC_KERNEL)/, $(C_FILES))
-ASM_SRC = $(addprefix $(SRC_KERNEL)/, $(ASM_FILES))
+# -------- Sources - Kernel ------
+KERNEL_C_SRC   := $(shell find $(SRC_KERNEL) -name "*.c")
+KERNEL_ASM_SRC := $(shell find $(SRC_KERNEL) -name "*.asm")
 
 # Suffix change syntax, .asm.o to avoid name collisions with x.c and x.asm
-OBJ_C   = $(addprefix $(OBJ_DIR)/, $(C_FILES:.c=.o))
-OBJ_ASM = $(addprefix $(OBJ_DIR)/, $(ASM_FILES:.asm=.asm.o))
-OBJ_SRC = $(OBJ_C) $(OBJ_ASM)
+KERNEL_OBJ_C   := $(patsubst $(SRC_KERNEL)/%.c,$(BUILD_KERNEL)/obj/%.c.o,$(KERNEL_C_SRC))
+KERNEL_OBJ_ASM := $(patsubst $(SRC_KERNEL)/%.asm,$(BUILD_KERNEL)/obj/%.asm.o,$(KERNEL_ASM_SRC))
+KERNEL_OBJ_SRC := $(KERNEL_OBJ_C) $(KERNEL_OBJ_ASM)
+
+# -------- Sources - Library ------
+
+LIB_C_SRC   := $(shell find $(SRC_LIB) -name "*.c")
+LIB_ASM_SRC := $(shell find $(SRC_LIB) -name "*.asm")
+
+LIB_OBJ_C   := $(patsubst $(SRC_LIB)/%.c,$(BUILD_LIB)/obj/%.c.o,$(LIB_C_SRC))
+LIB_OBJ_ASM := $(patsubst $(SRC_LIB)/%.asm,$(BUILD_LIB)/obj/%.asm.o,$(LIB_ASM_SRC))
+LIB_OBJ_SRC := $(LIB_OBJ_C) $(LIB_OBJ_ASM)
+
+# -------- Sources - Processes ------
+
+PROC_C_SRC   := $(shell find $(SRC_PROC) -name "*.c")
+PROC_OBJ_SRC := $(patsubst $(SRC_PROC)/%.c,$(BUILD_PROC)/obj/%.c.o,$(PROC_C_SRC))
 
 # first dependency =  $<
 # all dependencies = $^
@@ -53,20 +71,13 @@ OBJ_SRC = $(OBJ_C) $(OBJ_ASM)
 # Default target
 all: run
 
-# -------- Directory Targets --------
-$(OBJ_DIR):
-	mkdir -p $@
-$(BIN_DIR):
-	mkdir -p $@
-$(IMG_DIR):
-	mkdir -p $@
-
 # Bootloader is a separate binary linked with nothing. It loads the kernel which is 
 # a separate binary from the disk into memory. We directly jump from there so no
 # need to link with the kernel.
 
 # -------- Bootloader --------
-$(BOOT): $(SRC_BOOT)/first.asm | $(BIN_DIR)
+$(BOOT): $(SRC_BOOT)/first.asm
+	@mkdir -p $(dir $@)
 	$(AS) -f bin $< -o $@
 
 # We first compile to ELF object instead of raw since they have useful metadata
@@ -74,22 +85,44 @@ $(BOOT): $(SRC_BOOT)/first.asm | $(BIN_DIR)
 # are anyways producing a raw binary after linking. Check the linker script.
 
 # -------- Kernel C -> ELF Object --------
-$(OBJ_DIR)/%.o: $(SRC_KERNEL)/%.c | $(OBJ_DIR)
-	$(CC) $(CFLAGS) -c $< -o $@ -g
+$(BUILD_KERNEL)/obj/%.c.o: $(SRC_KERNEL)/%.c
+	@mkdir -p $(dir $@)
+	$(CC) $(KERNEL_CFLAGS) -c $< -o $@ -g
 
 # -------- Kernel ASM -> ELF Object --------
-$(OBJ_DIR)/%.asm.o: $(SRC_KERNEL)/%.asm | $(OBJ_DIR)
+$(BUILD_KERNEL)/obj/%.asm.o: $(SRC_KERNEL)/%.asm
+	@mkdir -p $(dir $@)
 	$(AS) $(ASFLAGS) $< -o $@ -g -F dwarf
 
 # -------- Link Kernel -> Raw binary --------
-$(BIN_DIR)/kernel.elf: $(OBJ_SRC) | $(BIN_DIR)
+
+$(KERNEL_ELF): $(KERNEL_OBJ_SRC)
+	@mkdir -p $(dir $@)
 	$(CC) $(LDFLAGS) -o $@ $^ -lgcc
 
-$(KERNEL): $(BIN_DIR)/kernel.elf
+$(KERNEL): $(KERNEL_ELF)
 	i686-elf-objcopy -O binary $< $@
 
+# -------- Library C -> ELF Object --------
+$(BUILD_LIB)/obj/%.c.o: $(SRC_LIB)/%.c
+	@mkdir -p $(dir $@)
+	$(CC) $(LIB_CFLAGS) -c $< -o $@ -g
+
+# -------- Library ASM -> ELF Object --------
+$(BUILD_LIB)/obj/%.asm.o: $(SRC_LIB)/%.asm
+	@mkdir -p $(dir $@)
+	$(AS) $(ASFLAGS) $< -o $@ -g -F dwarf
+
+# -------- Library Obj -> Archive --------
+$(LIBRARY): $(LIB_OBJ_SRC)
+	@mkdir -p $(dir $@)
+	$(AR) $(ARFLAGS) $@ $^
+
+lib: $(LIBRARY) # Build the library
+
 # -------- Disk Image --------
-$(IMAGE): $(BOOT) $(KERNEL) | $(IMG_DIR)
+$(IMAGE): $(BOOT) $(KERNEL)
+	@mkdir -p $(dir $@)
 # 2 to dev/null hides the progress clutter, remove if required for debug
 	@echo "Creating disk image..."
 
@@ -119,5 +152,9 @@ debug: $(IMAGE)
 	$(EMU) -m 512 -drive format=raw,file=$(IMAGE) -s -S
 
 # -------- Clean --------
-clean:
-	rm -rf $(BUILD)
+clean: clean_kernel clean_lib
+
+clean_kernel:
+	rm -rf $(BUILD_KERNEL)
+clean_lib:
+	rm -rf $(BUILD_LIB)

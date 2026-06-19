@@ -4,6 +4,7 @@ global init_paging
 global load_fault_virtual_address
 global return_page_directory
 global switch_to_virtual_stack
+global flush_tlb_entry
 
 extern kernel_cont
 extern kernel_cont2
@@ -34,9 +35,7 @@ return_page_directory:
     mov eax, cr3
     ret
 
-global test
-
-test:
-    mov eax, cr3
-    mov cr3, eax
+flush_tlb_entry:
+    mov eax, [esp + 4]
+    invlpg [eax]
     ret

@@ -1,12 +1,12 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
-#include "syscall.h"
-#include "process.h"
-#include "paging.h"
-#include "read_disk.h"
-#include "vir_allocator.h"
-#include "interrupt_handler.h"
+#include "process/syscall.h"
+#include "process/process.h"
+#include "memory/paging.h"
+#include "drivers/ata_driver.h"
+#include "memory/vir_allocator.h"
+#include "cpu/interrupt_handler.h"
 
 typedef enum process_state
 {
@@ -84,8 +84,6 @@ bool load_program_to_memory(directory_location process_directory, program_info p
 }
 
 uint32_t setup_new_stack(uint32_t new_directory_address);
-
-#define PSTACK_BASE 0xC0000000
 
 bool create_process(program_info program)
 {

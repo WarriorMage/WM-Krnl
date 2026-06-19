@@ -1,7 +1,7 @@
 #pragma once
 
 #include <stdint.h>
-#include "syscall.h"
+#include "process/syscall.h"
 
 typedef struct program_info
 {
@@ -10,6 +10,9 @@ typedef struct program_info
 } program_info;
 
 extern uint16_t current_process;
+
+#define PSTACK_BASE 0xC0000000
+#define PSTACK_END 0xBFF00000 // 1 MB user stack
 
 void initialize_kernel_process(void);
 bool create_process(program_info program);

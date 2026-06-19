@@ -1,14 +1,13 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
-#include "syscall.h"
-#include "process.h"
-#include "paging.h"
-#include "vir_allocator.h"
+#include "process/syscall.h"
+#include "process/process.h"
+#include "memory/paging.h"
+#include "memory/vir_allocator.h"
+#include "misc/utilities.h"
 
 typedef int32_t (*syscall_t)(syscall_args *);
-
-int32_t __sys_print_buffer_to_vga(syscall_args *arguments);
 
 static const syscall_t syscall_table[5] = {NULL, &__sys_exit_process, NULL, NULL, &__sys_print_buffer_to_vga};
 
@@ -32,30 +31,4 @@ void syscall_handler(uint32_t *arg_address)
         return_value = syscall_table[syscall_number](&arguments);
     }
     *(arg_address + 7) = return_value; // genius idea
-}
-
-int32_t __sys_print_buffer_to_vga(syscall_args *arguments)
-{
-    uint8_t row = (uint8_t)arguments->arg_1;
-    uint8_t col = (uint8_t)arguments->arg_2;
-    const char *text = (const char *)arguments->arg_3;
-    uint8_t color = (uint8_t)arguments->arg_4;
-    size_t len = (size_t)arguments->arg_5;
-
-    // uint8_t row, uint8_t col, const char *text, uint8_t color, size_t len
-    if (!text)
-        return 1;
-
-    // 80 columns per row
-    volatile char *dest_loc = (volatile char *)(VGA_VBASE + 2 * col + 2 * 80 * row);
-    volatile char *bound = (volatile char *)(VGA_VBASE + (80 * 25 * 2));
-    for (size_t i = 0; i < len; ++i)
-    {
-        if (dest_loc >= bound)
-            return 2;
-        *dest_loc = text[i];
-        *(dest_loc + 1) = color;
-        dest_loc += 2;
-    }
-    return 0;
 }

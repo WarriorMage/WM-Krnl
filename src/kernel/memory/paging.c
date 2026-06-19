@@ -1,10 +1,12 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
-#include "phy_allocator.h"
-#include "vir_allocator.h"
-#include "paging.h"
-#include "sample_processes.h"
+#include "memory/phy_allocator.h"
+#include "memory/vir_allocator.h"
+#include "memory/paging.h"
+#include "misc/utilities.h"
+#include "process/process.h"
+#include "process/syscall.h"
 
 // high 20 bits for frame number, next 12 bits for flags, format:
 // 3 bits for OS use |
@@ -18,7 +20,7 @@ __attribute__((section(".bootstrap"))) page_table_entry *setup_bootstrap_table(v
     for (size_t i = 0; i < PAGE_TABLE_SIZE; ++i)
     {
         uint16_t flags = IS_PRESENT | IS_WRITABLE;
-        table[i] = (i << 12) | (flags & 0xFFF);
+        table[i] = (i << 12) | (flags & 0xFFF); 
     }
     return table;
 }
@@ -28,7 +30,7 @@ extern uint32_t __kernel_start, __kernel_end, __kernel_end_lma;
 #define DIRECTORY_INDEX(x) ((x) >> 22)
 #define PAGE_INDEX(x) (((x) >> 12) & 0x3FF) // only take 10 bits
 
-void test(void);
+void flush_tlb_entry(uint32_t virtual_address);
 
 uint32_t map_page_to_frame(page_directory_entry *directory, uint32_t fault_address)
 {
@@ -64,13 +66,38 @@ uint32_t map_page_to_frame(page_directory_entry *directory, uint32_t fault_addre
 
     table_va[PAGE_INDEX(fault_address)] = allocated_frame | flags;
     unmap_mftp_page((void *)table_va);
-    test();
     return allocated_frame;
+}
+
+page_table_entry *get_page_table_va(uint32_t virtual_address)
+{
+    return (page_table_entry *)((uint32_t)(PAGE_TABLE_BASE) + DIRECTORY_INDEX(virtual_address) * PAGE_TABLE_SIZE * sizeof(page_table_entry));
 }
 
 void page_fault_handler(void)
 {
-    // kernel_panic();
+    uint32_t faulting_address = load_fault_virtual_address();
+    if (faulting_address >= PSTACK_END && faulting_address < PSTACK_BASE)
+    {
+        page_table_entry *page_table;
+        do
+        {
+            page_table = get_page_table_va(faulting_address);
+            if (!map_page_to_frame(PAGE_DIRECTORY_ADDR, faulting_address))
+            {
+                const char *message = "Unable to allocate memory for stack, terminating process...";
+                __sys_print_buffer_to_vga(&(syscall_args){8, 0, (uint32_t)message, 0x07, string_length(message), 0});
+                __sys_exit_process(&(syscall_args){0});
+            }
+            faulting_address += PAGE_SIZE;
+        } while (!(page_table[PAGE_INDEX(faulting_address)] & IS_PRESENT) && faulting_address < PSTACK_BASE);
+    }
+    else
+    {
+        const char *message = "Segmentation fault! Process terminated. ";
+        __sys_print_buffer_to_vga(&(syscall_args){8, 0, (uint32_t)message, 0x07, string_length(message), 0});
+        __sys_exit_process(&(syscall_args){0});
+    }
 }
 
 __attribute__((section(".bootstrap"))) void setup_page_directory_bootstrap(void)
@@ -225,7 +252,7 @@ void *map_frame_to_page(uint32_t frame_address)
 
     size_t directory_index = DIRECTORY_INDEX(page_to_return);
     page_directory_entry *current_directory = (page_directory_entry *)PAGE_DIRECTORY_ADDR;
-    page_table_entry *table = (page_table_entry *)((uint32_t)PAGE_TABLE_BASE + (4 * PAGE_TABLE_SIZE * directory_index));
+    page_table_entry *table = get_page_table_va(page_to_return);
     if (!(current_directory[directory_index] & IS_PRESENT))
     {
         current_directory[directory_index] = (uint32_t)allocate_frame() | (flags & 0xFFF);
@@ -251,8 +278,11 @@ uint8_t unmap_mftp_page(void *page_address)
 
     size_t directory_index = DIRECTORY_INDEX(page_to_free);
     page_directory_entry *current_directory = (page_directory_entry *)PAGE_DIRECTORY_ADDR;
-    page_table_entry *table = (page_table_entry *)((uint32_t)PAGE_TABLE_BASE + (4 * PAGE_TABLE_SIZE * directory_index));
+    page_table_entry *table = get_page_table_va(page_to_free);
+
     table[PAGE_INDEX(page_to_free)] = 0;
+    flush_tlb_entry((uint32_t)page_to_free); // always flush tlb after modifying a present PTE else
+    // the CPU may continue to use the cached values.
 
     bool table_free = true;
     for (size_t i = 0; i < PAGE_TABLE_SIZE; ++i)
@@ -267,6 +297,7 @@ uint8_t unmap_mftp_page(void *page_address)
     {
         return_frame(current_directory[directory_index] & (~0xFFF));
         current_directory[directory_index] = 0;
+        flush_tlb_entry((uint32_t)table);
     }
     return 0;
 }
@@ -287,11 +318,12 @@ directory_location setup_page_directory_process(void)
     return (directory_location){directory, directory_va};
 }
 
-uint32_t get_frame(void *page_address){
-    page_table_entry *table_address = PAGE_TABLE_BASE + DIRECTORY_INDEX((uint32_t)page_address) * PAGE_TABLE_SIZE;
+uint32_t get_frame(void *page_address)
+{
+    page_table_entry *table_address = get_page_table_va((uint32_t)page_address);
     page_table_entry table_entry = table_address[PAGE_INDEX((uint32_t)page_address)];
 
-    if(!(table_entry & IS_PRESENT))
+    if (!(table_entry & IS_PRESENT))
         return 0; // bug catching frame, yay!
     else
         return table_entry & (~0xFFF);

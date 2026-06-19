@@ -1,9 +1,10 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
-#include "keyboard.h"
-#include "read_disk.h"
-#include "paging.h"
+#include "drivers/keyboard.h"
+#include "drivers/ata_driver.h"
+#include "memory/paging.h"
+#include "process/syscall.h"
 
 #define VGA_MEMORY_BASE 0xB8000
 
@@ -49,7 +50,6 @@ void itoa(int32_t value, char *buffer)
 
 bool print_char_to_vga(uint8_t row, uint8_t col, uint8_t character, uint8_t color)
 {
-
     if (row >= 25 || col >= 80)
         return false;
     volatile char *dest_loc = (volatile char *)(VGA_VBASE + 2 * col + 160 * row);
@@ -77,25 +77,6 @@ void clear_screen(void)
         video[i] = 0x0720;
 }
 
-unsigned int string_length(const char *string)
-{
-    unsigned int length = 0;
-    while (string[length])
-        length++;
-    return length;
-}
-
-void print_success(int process_id)
-{
-    const char *message;
-    if (process_id == 2)
-        message = "Hello I am process 2!     ";
-    else if (process_id == 1)
-        message = "Welcome to this process 1!";
-    for (unsigned int i = 0; i < string_length(message); ++i)
-        print_char_to_vga(3, i, message[i], 0x07);
-}
-
 void keyboard_input(void)
 {
     uint8_t keyboard_input_var;
@@ -106,14 +87,6 @@ void keyboard_input(void)
     }
 }
 
-void read_disk_stuff(void)
-{
-    char buffer[1024];
-    read_sectors(100, 2, buffer);
-    for (size_t i = 0; i < sizeof(buffer); ++i)
-        print_char_to_vga(6 + (i / 80), i % 80, buffer[i], 0x07);
-}
-
 void kernel_panic(void)
 {
     const char message[] = "KERNEL PANIC!";
@@ -122,4 +95,38 @@ void kernel_panic(void)
     while (true)
     {
     }
+}
+
+int32_t __sys_print_buffer_to_vga(syscall_args *arguments)
+{
+    uint8_t row = (uint8_t)arguments->arg_1;
+    uint8_t col = (uint8_t)arguments->arg_2;
+    const char *text = (const char *)arguments->arg_3;
+    uint8_t color = (uint8_t)arguments->arg_4;
+    size_t len = (size_t)arguments->arg_5;
+
+    // uint8_t row, uint8_t col, const char *text, uint8_t color, size_t len
+    if (!text)
+        return 1;
+
+    // 80 columns per row
+    volatile char *dest_loc = (volatile char *)(VGA_VBASE + 2 * col + 2 * 80 * row);
+    volatile char *bound = (volatile char *)(VGA_VBASE + (80 * 25 * 2));
+    for (size_t i = 0; i < len; ++i)
+    {
+        if (dest_loc >= bound)
+            return 2;
+        *dest_loc = text[i];
+        *(dest_loc + 1) = color;
+        dest_loc += 2;
+    }
+    return 0;
+}
+
+unsigned int string_length(const char *string)
+{
+    unsigned int length = 0;
+    while (string[length])
+        length++;
+    return length;
 }

@@ -1,7 +1,7 @@
 #pragma once
 
 #include <stddef.h>
-#include "phy_allocator.h"
+#include "memory/phy_allocator.h"
 
 extern uint32_t __kernel_end;
 #define KHEAP_BASE 0xFE000000

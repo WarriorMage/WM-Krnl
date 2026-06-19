@@ -1,8 +1,8 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
-#include "paging.h"
-#include "vir_allocator.h"
+#include "memory/paging.h"
+#include "memory/vir_allocator.h"
 
 // Should return to fix alignment, and returning pages to OS, request of multiple pages.
 

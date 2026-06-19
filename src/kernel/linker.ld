@@ -9,6 +9,7 @@ SECTIONS
 /* My .bootstrap (kernel_init) should come first at 0x10000 exactly followed by all code. */
     .bootstrap :
     {
+        *(.bootstrap_first)
         *(.bootstrap)
     }
     __bootstrap_end = .;

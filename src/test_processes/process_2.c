@@ -2,10 +2,10 @@
 #include <stdbool.h>
 #include "../lib/lib.h"
 
-void process_2(void)
+void _start(void)
 {
     uint8_t i = 79;
-    for (int k = 0; k < 500; ++k)
+    for (int k = 0; k < 300; ++k)
     {
         for (volatile int j = 0; j < 10000000; j++)
             ;

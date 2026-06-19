@@ -1,12 +1,12 @@
 #include <stdint.h>
 #include <stddef.h>
-#include "io.h"
-#include "interrupt_handler.h"
-#include "keyboard.h"
-#include "sample_processes.h"
-#include "process.h"
-#include "paging.h"
-#include "syscall.h"
+#include "misc/io.h"
+#include "cpu/interrupt_handler.h"
+#include "drivers/keyboard.h"
+#include "misc/utilities.h"
+#include "process/process.h"
+#include "memory/paging.h"
+#include "process/syscall.h"
 
 #define MASTER_COMMAND 0x20
 #define MASTER_DATA 0x21   // Consists of the interrupt mask data for master

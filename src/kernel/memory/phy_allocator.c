@@ -1,9 +1,9 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
-#include "process.h"
-#include "paging.h"
-#include "phy_allocator.h"
+#include "process/process.h"
+#include "memory/paging.h"
+#include "memory/phy_allocator.h"
 
 #define MEMORY_MAP_BUFFER 0x5000
 
@@ -144,7 +144,7 @@ void *allocate_frame(void)
         }
     }
 
-    return NULL; // Protection not enforced, just please don't use this :)
+    return NULL; // Zero frame invalid, used to catch bugs
 }
 
 bool return_frame(uint32_t frame_address)

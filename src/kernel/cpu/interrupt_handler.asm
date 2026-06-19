@@ -16,10 +16,6 @@ global after_return_32
 
 %macro ISR 1
 isr_%1:
-    %if (%1 < 32)
-        cli
-        hlt
-    %endif
     push ds
     push es
     push fs

@@ -1,4 +1,4 @@
-ENTRY(process_1)
+ENTRY(_start)
 
 SECTIONS
 {
