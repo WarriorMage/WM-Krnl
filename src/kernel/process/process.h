@@ -18,3 +18,4 @@ void initialize_kernel_process(void);
 bool create_process(program_info program);
 void context_switch(uint32_t current_stack_top);
 int32_t __sys_exit_process(syscall_args *arguments);
+[[noreturn]] void idle_proc(void);

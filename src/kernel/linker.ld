@@ -12,7 +12,6 @@ SECTIONS
         *(.bootstrap_first)
         *(.bootstrap)
     }
-    __bootstrap_end = .;
 
     . = ALIGN(0x1000);    /* have the new section start frame aligned so that */
     __bootstrap_end = .;  /* it can be mapped in the page table.*/

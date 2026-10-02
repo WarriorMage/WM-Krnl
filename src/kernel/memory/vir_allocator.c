@@ -36,7 +36,7 @@ free_node *find_chunk(size_t size)
             return trav;
         trav = trav->next;
     }
-    return trav;
+    return NULL;
 }
 
 void copy_free_node(const free_node *src, free_node *dest)
@@ -97,19 +97,22 @@ void coalesce(free_node **new_free_node_ptr)
 
     if (new_free_node->next && new_free_node->next == (free_node *)((char *)new_free_node + new_free_node->length))
     {
-        new_free_node->length = new_free_node->length + new_free_node->next->length;
+        new_free_node->length += new_free_node->next->length;
         new_free_node->next = new_free_node->next->next;
-        // if (new_free_node->next) ; redundant
+        if (new_free_node->next)
             new_free_node->next->prev = new_free_node;
     }
     if (new_free_node->prev && new_free_node->prev == (free_node *)((char *)new_free_node - new_free_node->prev->length))
     {
         new_free_node = new_free_node->prev;
-        new_free_node->length = new_free_node->length + new_free_node->next->length;
+        new_free_node->length += new_free_node->next->length;
         new_free_node->next = new_free_node->next->next;
         if (new_free_node->next)
             new_free_node->next->prev = new_free_node;
     }
+    if (!new_free_node->prev)
+        head = new_free_node;
+
     *new_free_node_ptr = new_free_node;
 }
 
@@ -117,22 +120,19 @@ bool add_new_page(void)
 {
     static size_t heap_page_number = 0;
     // why am i protecting just the stack top instead of the entire region? fix this
-    if (heap_page_number >= (KHEAP_END / PAGE_SIZE))
+    if (heap_page_number >= (KHEAP_END - KHEAP_BASE) / PAGE_SIZE)
         return false;
 
     uint32_t heap_region = KHEAP_BASE + heap_page_number * PAGE_SIZE;
     if (!map_page_to_frame(PAGE_DIRECTORY_ADDR, heap_region))
         return false;
-    
+
     heap_page_number++;
     free_node *new_region = (void *)heap_region;
     new_region->length = PAGE_SIZE;
 
     free_list_insert(new_region);
     coalesce(&new_region);
-    if (!new_region->prev)
-        head = new_region;
-
     return true;
 }
 
@@ -167,7 +167,7 @@ void *kmalloc(size_t size)
     allocated_chunk->size = size + ((split_space < sizeof(free_node)) ? split_space : 0);
     allocated_chunk->magic_number = MAGIC_NUMBER;
 
-    void *return_block = (void *)((char *)allocated_chunk + sizeof(block_header));
+    void *return_block = (void *)((unsigned char *)allocated_chunk + sizeof(block_header));
     return return_block;
 }
 

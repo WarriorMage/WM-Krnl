@@ -4,21 +4,23 @@
 #include "process/process.h"
 #include "memory/paging.h"
 #include "memory/phy_allocator.h"
+#include "misc/utilities.h"
 
 #define MEMORY_MAP_BUFFER 0x5000
+bool in_bootstrap = true;
 
 extern uint32_t __kernel_start;
-extern uint32_t __kernel_end_lma;
 extern uint32_t __kernel_end;
-extern uint32_t __bss_end;
+extern uint32_t __kernel_end_lma;
 extern uint32_t __bss_start;
+extern uint32_t __bss_end;
 
 typedef struct memory_map_entry
 {
     uint64_t base;
     uint64_t length;
     uint32_t type;
-    uint32_t acpi_ext;
+    uint32_t _acpi_ext;
 } memory_map_entry;
 
 typedef struct usable_region
@@ -38,10 +40,10 @@ void read_memory_map_buffer(void)
     memory_map_entry_count = *(uint16_t *)MEMORY_MAP_BUFFER;
     memory_map_entry *entry = (memory_map_entry *)(MEMORY_MAP_BUFFER + 2);
 
-    for (uint16_t count = 0; count < ((memory_map_entry_count > MAP_ENTRIES_BOUND) ? MAP_ENTRIES_BOUND : memory_map_entry_count); ++count)
+    for (uint16_t count = 0; count < MIN(memory_map_entry_count, MAP_ENTRIES_BOUND); ++count)
     {
         memory_map[count] = *entry;
-        if (memory_map[count].type == 1 && memory_map[count].base >= 0x100000)
+        if (memory_map[count].type == 1)
         {
             usable_regions[usable_region_count].base = memory_map[count].base;
             usable_regions[usable_region_count].length = memory_map[count].length;
@@ -63,11 +65,7 @@ uint32_t align_down(uint32_t original)
     return original & ~0xFFF;
 }
 
-typedef struct free_page
-{
-    struct free_page *prev;
-    struct free_page *next;
-} free_page;
+// we are using a bitmap here, free page list is another alternative.
 
 void bit_set(uint8_t *base_address, size_t bit_position, bool bit_value)
 {
@@ -93,9 +91,9 @@ uint64_t max_address;
 
 size_t kernel_table_pages;
 
-bool setup_allocator(void)
+void setup_allocator(void)
 {
-    for (size_t i = 0; i < memory_map_entry_count; ++i)
+    for (size_t i = 0; i < MIN(memory_map_entry_count, MAP_ENTRIES_BOUND); ++i)
     {
         uint64_t end_address = memory_map[i].base + memory_map[i].length;
         if (end_address > max_address)
@@ -122,20 +120,18 @@ bool setup_allocator(void)
             bit_set(bitmap, j / PAGE_SIZE, USED);
         }
     }
-    bit_set(bitmap, 0, USED); // leave the first frame unallocated, even if not reserved, use for error catching
-    bit_set(bitmap, BOOTSTRAP_DIR_ADDR / PAGE_SIZE, USED); // save bootstrap directory
+    bit_set(bitmap, BOOTSTRAP_DIR_ADDR / PAGE_SIZE, USED);
 
     kernel_table_pages = ((size_t)(&__kernel_end - 1) / (PAGE_SIZE * PAGE_TABLE_SIZE)) - (KERNEL_BASE / (PAGE_SIZE * PAGE_TABLE_SIZE)) + 1;
 
     for (size_t i = align_down((uint32_t)&__kernel_start); i < align_up((uint32_t)&__kernel_end_lma) + (kernel_table_pages * PAGE_SIZE); i += PAGE_SIZE)
         bit_set(bitmap, i / PAGE_SIZE, USED);
-
-    return true;
+        
 }
 
 void *allocate_frame(void)
 {
-    for (size_t i = 0; i < bitmap_size_in_bytes * 8; ++i)
+    for (size_t i = (in_bootstrap ? 0x100000 / PAGE_SIZE : 0); i < bitmap_size_in_bytes * 8; ++i)
     {
         if (bit_get(bitmap, i) == FREE)
         {

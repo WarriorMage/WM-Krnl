@@ -17,7 +17,7 @@ setup_new_stack:
     mov cr3, eax
     mov esp, 0xFFC00000
 
-    ; Push EIP, CS and EFLAGS, SS, ESP to be popped by iretd
+    ; Push EIP, CS and EFLAGS, SS, ESP to b e popped by iretd
     push 0x23
     push 0xC0000000
     push 0x202
@@ -42,3 +42,7 @@ context_switch_asm:
     mov cr3, eax
     call dead_process_cleanup
     jmp after_return_32
+
+idle_proc:
+    hlt
+    jmp idle_proc

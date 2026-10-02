@@ -31,6 +31,8 @@ typedef struct directory_location
     page_directory_entry *directory_va;
 } directory_location;
 
+extern bool vga_remapped;
+
 void setup_page_directory_bootstrap(void);
 directory_location setup_page_directory_process(void);
 void page_fault_handler(void);
@@ -51,8 +53,6 @@ uint32_t map_page_to_frame(page_directory_entry *process_directory, uint32_t fau
 void *map_frame_to_page(uint32_t frame_address);
 uint8_t unmap_mftp_page(void *page_address);
 
-void switch_to_virtual_stack(void);
-
 size_t residue(size_t num1, size_t num2);
 
-bool map_region_to_bootstrap(uint32_t base_physical, uint32_t base_virtual, size_t length_in_bytes);
+bool map_region_to_process(page_directory_entry *process_directory, uint32_t base_physical, uint32_t base_virtual, size_t length_in_bytes);

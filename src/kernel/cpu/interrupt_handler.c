@@ -98,7 +98,7 @@ idtr idtr_descriptor;
 #define KERNEL_CODE_SEGMENT 0x08
 #define INTERRUPT_GATE 0x8E
 #define TRAP_GATE 0x8F
-#define SYSCALL_GATE 0xEE
+#define SYSCALL_GATE 0xEF
 
 void fill_idt_entry(uint16_t index, uint32_t handler, uint16_t segment_selector, uint8_t type_attr)
 {
@@ -117,7 +117,7 @@ void setup_idt(void)
     for (; i < IDT_SIZE; ++i)
         fill_idt_entry(i, (uint32_t)isr_table[i], KERNEL_CODE_SEGMENT, TRAP_GATE);
 
-    fill_idt_entry(0x80, (uint32_t)isr_table[0x80], KERNEL_CODE_SEGMENT, SYSCALL_GATE);
+    fill_idt_entry(SYSCALL, (uint32_t)isr_table[SYSCALL], KERNEL_CODE_SEGMENT, SYSCALL_GATE);
 }
 
 void setup_idtr(void)

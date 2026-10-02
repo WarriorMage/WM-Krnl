@@ -3,7 +3,6 @@ BITS 32
 global init_paging
 global load_fault_virtual_address
 global return_page_directory
-global switch_to_virtual_stack
 global flush_tlb_entry
 
 extern kernel_cont
@@ -17,14 +16,9 @@ init_paging:
     mov eax, cr0
     or eax, 0x8000_0000
     mov cr0, eax
-    add esp, 4
     jmp kernel_cont
 
 section .text
-
-switch_to_virtual_stack:
-    mov esp, 0xFFC00000
-    jmp kernel_cont2
 
 load_fault_virtual_address:
     mov eax, cr2

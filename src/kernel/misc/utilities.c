@@ -1,12 +1,11 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
+#include "misc/utilities.h"
 #include "drivers/keyboard.h"
 #include "drivers/ata_driver.h"
 #include "memory/paging.h"
 #include "process/syscall.h"
-
-#define VGA_MEMORY_BASE 0xB8000
 
 void itoa(int32_t value, char *buffer)
 {
@@ -52,7 +51,7 @@ bool print_char_to_vga(uint8_t row, uint8_t col, uint8_t character, uint8_t colo
 {
     if (row >= 25 || col >= 80)
         return false;
-    volatile char *dest_loc = (volatile char *)(VGA_VBASE + 2 * col + 160 * row);
+    volatile char *dest_loc = (volatile char *)((vga_remapped ? VGA_VBASE : VGA_PBASE) + 2 * col + 160 * row);
     *dest_loc = character;
     *(dest_loc + 1) = color;
     return true;
@@ -71,7 +70,7 @@ void print_counter(void)
 
 void clear_screen(void)
 {
-    volatile unsigned short *video = (unsigned short *)VGA_MEMORY_BASE;
+    volatile unsigned short *video = (unsigned short *)VGA_PBASE;
 
     for (unsigned int i = 0; i < 80 * 25; ++i)
         video[i] = 0x0720;
@@ -87,11 +86,23 @@ void keyboard_input(void)
     }
 }
 
-void kernel_panic(void)
+void kernel_panic(const char *error)
 {
     const char message[] = "KERNEL PANIC!";
-    for (size_t i = 0; message[i] != '\0'; ++i)
+    size_t i = 0;
+    for (; message[i] != '\0'; ++i)
         print_char_to_vga(0, i, message[i], 0x07);
+    if (error[0] != '\0')
+    {
+        print_char_to_vga(0, i, ':', 0x07);
+        ++i;
+        print_char_to_vga(0, i, ' ', 0x07);
+        ++i;
+        for (size_t j = 0; error[j] != '\0'; ++j){
+            print_char_to_vga(0, i, error[j], 0x07);
+            ++i;
+        }
+    }
     while (true)
     {
     }
@@ -123,10 +134,18 @@ int32_t __sys_print_buffer_to_vga(syscall_args *arguments)
     return 0;
 }
 
+void memcpy(void *dest, const void *src, size_t bytes)
+{
+    char *destination = (char *)dest;
+    const char *source = (const char *)src;
+    for (size_t i = 0; i < bytes; ++i)
+        destination[i] = source[i];
+}
+
 unsigned int string_length(const char *string)
 {
     unsigned int length = 0;
     while (string[length])
-        length++;
+        ++length;
     return length;
 }

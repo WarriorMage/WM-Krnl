@@ -2,6 +2,7 @@
 #include <stddef.h>
 #include <stdbool.h>
 #include "misc/io.h"
+#include "drivers/ata_driver.h"
 
 typedef enum
 {
@@ -14,6 +15,7 @@ typedef enum
 #define SECTOR_SIZE 512
 #define READ_SECTOR 0x20
 #define WRITE_SECTOR 0x30
+#define IDENTIFY_DEVICE 0xEC
 
 typedef enum
 {
@@ -29,9 +31,13 @@ typedef enum
 } ata_port_t;
 
 // i always use lba
-static void send_ata_command(uint32_t lba, bool drive, uint8_t sec_count, uint8_t command)
+static void send_ata_command(uint32_t lba, disk_t drive, uint8_t sec_count, uint8_t command)
 {
-    outb(0x1F6, ((uint8_t)(lba >> 24) & 0x0F) | ((drive == MASTER) ? 0xE0 : 0xF0));
+    uint8_t options = ((drive == MASTER) ? 0xE0 : 0xF0);
+    if (command == IDENTIFY_DEVICE)
+        options &= 0xBF; // cmd requires CHS mode
+
+    outb(0x1F6, ((uint8_t)(lba >> 24) & 0x0F) | options);
     outb(0x1F5, (uint8_t)(lba >> 16));
     outb(0x1F4, (uint8_t)(lba >> 8));
     outb(0x1F3, (uint8_t)(lba));
@@ -63,6 +69,38 @@ static bool poll_disk(uint8_t *status_byte, bool data_left)
     return true;
 }
 
+static bool identify_device(void *buf)
+{
+    uint8_t status_byte;
+    wait_for_disk_avl(&status_byte);
+
+    send_ata_command(0, MASTER, 0, IDENTIFY_DEVICE);
+    if (inb(ATA_STATUS) == 0x00)
+        return false; // no disk exists
+
+    if (!poll_disk(&status_byte, true))
+        return false;
+
+    uint16_t *buffer = (uint16_t *)buf; // to write 2 bytes conveniently.
+    for (uint16_t i = 0; i < 256; ++i)
+    {
+        buffer[i] = inw(ATA_DATA);
+    }
+
+    return true;
+}
+
+bool fill_disk_info(disk_info_t *disk_info)
+{
+    char info_buf[512];
+    if(!identify_device((void *)info_buf))
+        return false;
+    const uint16_t *info_buffer = (const uint16_t *)info_buf;
+    uint32_t total_sectors = (info_buffer[61] << 16) | info_buffer[60];
+    disk_info->sector_count = total_sectors;
+    return true;
+}
+
 bool read_sectors(uint32_t lba, uint8_t sec_count, void *buf)
 {
     uint8_t status_byte;
@@ -82,8 +120,6 @@ bool read_sectors(uint32_t lba, uint8_t sec_count, void *buf)
         }
     }
 
-    if (!poll_disk(&status_byte, false))
-        return false;
     return true;
 }
 
@@ -107,6 +143,6 @@ bool write_sectors(uint32_t lba, uint8_t sec_count, const void *buf)
     }
 
     if (!poll_disk(&status_byte, false))
-        return false;
+        return false; // finish writing last sector
     return true;
 }

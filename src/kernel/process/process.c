@@ -4,8 +4,9 @@
 #include "process/syscall.h"
 #include "process/process.h"
 #include "memory/paging.h"
-#include "drivers/ata_driver.h"
 #include "memory/vir_allocator.h"
+#include "memory/phy_allocator.h"
+#include "drivers/ata_driver.h"
 #include "cpu/interrupt_handler.h"
 
 typedef enum process_state
@@ -39,7 +40,7 @@ typedef struct process
 static process process_list[MAX_PROCESSES];
 
 // Not supposed to return
-void context_switch_asm(uint32_t new_directory_address, uint32_t new_stack_top);
+[[noreturn]] void context_switch_asm(uint32_t new_directory_address, uint32_t new_stack_top);
 
 uint16_t current_process = 0;
 
@@ -56,6 +57,8 @@ void context_switch(uint32_t current_stack_top)
 
     current_process = next_process;
     process_list[current_process].state = RUNNING;
+    if (in_bootstrap)
+        in_bootstrap = false;
     context_switch_asm(process_list[current_process].page_directory_address, process_list[current_process].kernel_stack_top);
 }
 
