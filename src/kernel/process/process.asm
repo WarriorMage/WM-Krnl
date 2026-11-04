@@ -2,6 +2,8 @@ section .text
 
 global setup_new_stack
 global context_switch_asm
+global idle_proc
+global hard_stop
 extern dead_process_cleanup
 
 ; switch_cr3:
@@ -46,3 +48,9 @@ context_switch_asm:
 idle_proc:
     hlt
     jmp idle_proc
+
+hard_stop:
+    cli
+    trap:
+        hlt
+        jmp trap

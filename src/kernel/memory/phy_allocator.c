@@ -67,22 +67,7 @@ uint32_t align_down(uint32_t original)
 
 // we are using a bitmap here, free page list is another alternative.
 
-void bit_set(uint8_t *base_address, size_t bit_position, bool bit_value)
-{
-    uint8_t *target_byte = base_address + (bit_position / 8);
-    uint8_t target_bit = (bit_position % 8);
-    if (bit_value)
-        *target_byte |= (1 << target_bit);
-    else
-        *target_byte &= ~(1 << target_bit);
-}
 
-bool bit_get(uint8_t *base_address, size_t bit_position)
-{
-    uint8_t *target_byte = base_address + (bit_position / 8);
-    uint8_t target_bit = (bit_position % 8);
-    return (*target_byte >> target_bit) & 1;
-}
 
 #define BITMAP_SIZE (128 * 1024) // max bitmap size in 4 GB systems
 uint8_t bitmap[BITMAP_SIZE];
@@ -134,7 +119,7 @@ void *allocate_frame(void)
     for (size_t i = (in_bootstrap ? 0x100000 / PAGE_SIZE : 0); i < bitmap_size_in_bytes * 8; ++i)
     {
         if (bit_get(bitmap, i) == FREE)
-        {
+        {   
             bit_set(bitmap, i, USED);
             return (void *)(i * PAGE_SIZE);
         }

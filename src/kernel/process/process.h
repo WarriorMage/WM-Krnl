@@ -3,10 +3,10 @@
 #include <stdint.h>
 #include "process/syscall.h"
 
-typedef struct program_info
+typedef struct __program_info
 {
-    uint32_t starting_lba;
-    uint32_t sector_count;
+    uint32_t starting_block;
+    uint32_t block_count;
 } program_info;
 
 extern uint16_t current_process;
@@ -19,3 +19,5 @@ bool create_process(program_info program);
 void context_switch(uint32_t current_stack_top);
 int32_t __sys_exit_process(syscall_args *arguments);
 [[noreturn]] void idle_proc(void);
+[[noreturn]] void hard_stop(void);
+

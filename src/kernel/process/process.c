@@ -71,7 +71,7 @@ uint16_t assign_process_id(void)
 
 bool load_program_to_memory(directory_location process_directory, program_info program)
 {
-    size_t page_count = program.sector_count / 8 + residue(program.sector_count, 8); // page size = 8 * sector size
+    size_t page_count = program.block_count / 8 + residue(program.block_count, 8); // page size = 8 * sector size
     uint32_t allocated_frame;
     
     for (size_t i = 0; i < page_count; ++i)
@@ -80,7 +80,7 @@ bool load_program_to_memory(directory_location process_directory, program_info p
             return false;
 
         void *virtual_page = map_frame_to_page(allocated_frame);
-        read_sectors(program.starting_lba + (i * 8), (i == page_count - 1) ? program.sector_count - (i * 8) : 8, virtual_page);
+        ata_read_sectors(program.starting_block + (i * 8), (i == page_count - 1) ? program.block_count - (i * 8) : 8, virtual_page);
         unmap_mftp_page(virtual_page);
     }
     return true;

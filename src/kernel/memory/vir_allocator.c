@@ -55,7 +55,7 @@ void free_list_insert(free_node *insert_node)
     while (trav && trav->next && trav < insert_node) // trav != insert_node we are just freeing insert_node
         trav = trav->next;
 
-    if (!trav || trav < insert_node) // There should be no free list entry > insert_node
+    if (!trav || trav < insert_node) // There is no free list entry > insert_node
     {
         insert_node->prev = trav;
         insert_node->next = NULL;
@@ -76,6 +76,7 @@ void free_list_insert(free_node *insert_node)
     }
 }
 
+// size should be atleast MIN_ALLOC bytes to ensure proper freeing later
 void split(free_node *original_chunk, size_t size)
 {
     free_node *split_chunk = (free_node *)((char *)original_chunk + sizeof(block_header) + size);

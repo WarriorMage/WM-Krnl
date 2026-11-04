@@ -3,7 +3,6 @@
 #include <stdbool.h>
 #include "misc/utilities.h"
 #include "drivers/keyboard.h"
-#include "drivers/ata_driver.h"
 #include "memory/paging.h"
 #include "process/syscall.h"
 
@@ -76,14 +75,11 @@ void clear_screen(void)
         video[i] = 0x0720;
 }
 
-void keyboard_input(void)
+char getchar(void)
 {
     uint8_t keyboard_input_var;
-    while (1)
-    {
-        keyboard_read(&keyboard_input_var);
-        print_char_to_vga(10, 5, scan_code_to_ascii(keyboard_input_var), 0x07);
-    }
+    keyboard_read(&keyboard_input_var);
+    return scan_code_to_ascii(keyboard_input_var);
 }
 
 void kernel_panic(const char *error)
@@ -98,7 +94,8 @@ void kernel_panic(const char *error)
         ++i;
         print_char_to_vga(0, i, ' ', 0x07);
         ++i;
-        for (size_t j = 0; error[j] != '\0'; ++j){
+        for (size_t j = 0; error[j] != '\0'; ++j)
+        {
             print_char_to_vga(0, i, error[j], 0x07);
             ++i;
         }
@@ -148,4 +145,37 @@ unsigned int string_length(const char *string)
     while (string[length])
         ++length;
     return length;
+}
+
+size_t read_line(char *buf, size_t max_len)
+{
+    if (max_len == 0)
+        return 0;
+    size_t read_len = 0;
+    while (read_len < max_len - 1)
+    {
+        buf[read_len] = getchar();
+        if (buf[read_len] == '\n')
+            break;
+        ++read_len;
+    }
+    buf[read_len] = '\0';
+    return read_len;
+}
+
+void bit_set(uint8_t *base_address, size_t bit_position, alloc_bit bit_value)
+{
+    uint8_t *target_byte = base_address + (bit_position / 8);
+    uint8_t target_bit = (bit_position % 8);
+    if (bit_value == USED)
+        *target_byte |= (1 << target_bit);
+    else
+        *target_byte &= ~(1 << target_bit);
+}
+
+bool bit_get(uint8_t *base_address, size_t bit_position)
+{
+    uint8_t *target_byte = base_address + (bit_position / 8);
+    uint8_t target_bit = (bit_position % 8);
+    return (*target_byte >> target_bit) & 1;
 }

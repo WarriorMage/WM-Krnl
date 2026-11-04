@@ -14,9 +14,16 @@ void clear_screen(void);
 bool print_char_to_vga(uint8_t row, uint8_t col, uint8_t character, uint8_t color);
 void print_counter(void);
 
-void keyboard_input(void);
+char getchar(void);
 void kernel_panic(const char *error);
 
 int32_t __sys_print_buffer_to_vga(syscall_args *arguments);
 unsigned int string_length(const char *string);
 void memcpy(void *dest, const void *src, size_t bytes);
+
+typedef enum __alloc_bit{
+    FREE,
+    USED,
+} alloc_bit;
+bool bit_get(uint8_t *base_address, size_t bit_position);
+void bit_set(uint8_t *base_address, size_t bit_position, alloc_bit bit_value);

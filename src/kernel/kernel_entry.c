@@ -69,8 +69,6 @@ __attribute__((section(".start"))) void kernel_cont(void)
     kernel_panic("Should not have returned from kernel_main()?");
 }
 
-#include "drivers/ata_driver.h"
-
 void kernel_main(void)
 {
     create_process((program_info){100, 1});
@@ -83,13 +81,11 @@ void kernel_main(void)
 
     // char buf[512];
 
-    // write_sectors(200, 1, "Hello World!");
-    // read_sectors(200, 1, (void *)buf);
+    // ata_write_sectors(200, 1, "Hello World!");
+    // ata_read_sectors(200, 1, (void *)buf);
 
     // __sys_print_buffer_to_vga(&(syscall_args){10, 5, buf, 0x0F, sizeof("Hello World!"), NULL});
 
     set_interrupts();
-    while (1)
-    {
-    }
+    idle_proc();
 }
