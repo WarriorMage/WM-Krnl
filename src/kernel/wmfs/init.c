@@ -1,7 +1,8 @@
-#include "wmfs/smthg.h"
+#include "wmfs/init.h"
 #include "drivers/keyboard.h"
 #include "misc/utilities.h"
 #include "wmfs/block.h"
+#include "wmfs/inode.h"
 #include "process/process.h"
 #include "memory/vir_allocator.h"
 
@@ -9,7 +10,7 @@
 #define DATA_BLOCKS_PER_INODE 16
 #define WMFS_MAGIC 0x574D4653
 
-static superblock_t superblock;
+superblock_t superblock;
 uint8_t *ibitmap_cache, *dbitmap_cache;
 
 // inode size = 64 bytes, inodes per block = 4096 / 64 = 64
@@ -31,9 +32,10 @@ void get_block_counts(const disk_info_t *disk_info, superblock_t *superblock)
     while (true) // this only will run twice anyways
     {
         superblock->data_block_count = data_blocks; // assume all data blocks
-        superblock->inode_block_count = ceil_div(data_blocks, DATA_BLOCKS_PER_INODE * (BLOCK_SIZE / sizeof(inode_t)));
+        superblock->inode_block_count = ceil_div(data_blocks, DATA_BLOCKS_PER_INODE * INODES_PER_BLOCK);
         superblock->dbitmap_block_count = ceil_div(data_blocks, BLOCK_SIZE * 8); // get in bits
-        superblock->ibitmap_block_count = ceil_div(ceil_div(data_blocks, DATA_BLOCKS_PER_INODE), BLOCK_SIZE * 8);
+        superblock->inode_count = ceil_div(data_blocks, DATA_BLOCKS_PER_INODE);
+        superblock->ibitmap_block_count = ceil_div(superblock->inode_count, BLOCK_SIZE * 8);
 
         uint32_t calc_total_blocks = superblock->data_block_count + superblock->inode_block_count + superblock->dbitmap_block_count + superblock->ibitmap_block_count + 1;
 
@@ -157,7 +159,7 @@ void init_wmfs(void)
         if (choice != 'y' && choice != 'Y')
         {
             const char *sorry = "Disk not formatted, system halted. Remove the installation media and restart the computer.";
-            __sys_print_buffer_to_vga(&(syscall_args){2, 0, (uint32_t)format_message, 0x07, string_length(format_message), 0});
+            __sys_print_buffer_to_vga(&(syscall_args){2, 0, (uint32_t)sorry, 0x07, string_length(sorry), 0});
             hard_stop();
         }
         format_wmfs();
@@ -168,6 +170,10 @@ void init_wmfs(void)
         init_bitmap_caches();
         if (!read_blocks(superblock.ibitmap_start_block, superblock.ibitmap_block_count, ibitmap_cache) ||
             !read_blocks(superblock.dbitmap_start_block, superblock.dbitmap_block_count, dbitmap_cache))
+        {
+            const char *init_fail = "Failed to initialize the bitmap caches, aborted.";
+            __sys_print_buffer_to_vga(&(syscall_args){2, 0, (uint32_t)init_fail, 0x07, string_length(init_fail), 0});
             hard_stop(); // will do something better - placeholder
+        }
     }
 }

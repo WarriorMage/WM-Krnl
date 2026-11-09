@@ -1,6 +1,6 @@
 #include <stdint.h>
 #include "wmfs/block.h"
-#include "wmfs/smthg.h"
+#include "wmfs/init.h"
 
 typedef struct __dirent_t
 {
