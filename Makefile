@@ -35,11 +35,15 @@ ASFLAGS = -f elf32
 ARFLAGS = rcs
 
 # -------- Files --------
-BOOT       = $(BUILD_BOOT)/bin/first.bin
 KERNEL_ELF = $(BUILD_KERNEL)/bin/kernel.elf
 KERNEL     = $(BUILD_KERNEL)/bin/kernel.bin
 IMAGE      = $(BUILD_KERNEL)/img/os.img
 LIBRARY    = $(BUILD_LIB)/ar/lib.a
+
+# -------- Sources - Boot ------
+
+BOOT_ASM_SRC := $(shell find $(SRC_BOOT) -name "*.asm")
+BOOT := $(patsubst $(SRC_BOOT)/%.asm,$(BUILD_BOOT)/bin/%.bin,$(BOOT_ASM_SRC))
 
 # -------- Sources - Kernel ------
 KERNEL_C_SRC   := $(shell find $(SRC_KERNEL) -name "*.c")
@@ -76,7 +80,7 @@ all: run
 # need to link with the kernel.
 
 # -------- Bootloader --------
-$(BOOT): $(SRC_BOOT)/first.asm
+$(BUILD_BOOT)/bin/%.bin: $(SRC_BOOT)/%.asm
 	@mkdir -p $(dir $@)
 	$(AS) -f bin $< -o $@
 
@@ -119,25 +123,10 @@ $(LIBRARY): $(LIB_OBJ_SRC)
 	$(AR) $(ARFLAGS) $@ $^
 
 lib: $(LIBRARY) # Build the library
-
+ 
 # -------- Disk Image --------
-$(IMAGE): $(BOOT) $(KERNEL)
-	@mkdir -p $(dir $@)
-# 2 to dev/null hides the progress clutter, remove if required for debug
-	@echo "Creating disk image..."
-
-# Fill in of os.img for 1MB * 1 = 1MB with zeroes from if /dev/zero
-	dd if=/dev/zero of=$(IMAGE) bs=1M count=1 2>/dev/null
-
-# Overwrite the image with the first.bin we created. dd truncates the rest of file
-# after writing to avoid this we use notrunc
-	dd if=$(BOOT) of=$(IMAGE) conv=notrunc 2>/dev/null
-
-# Skip 1 block (seek) of 512 bytes (block size) and write kernel.bin
-	dd if=$(KERNEL) of=$(IMAGE) bs=512 seek=1 conv=notrunc 2>/dev/null
-
-	dd if=src/test_processes/process_1.bin of=$(IMAGE) bs=512 seek=100 conv=notrunc 2>/dev/null
-	dd if=src/test_processes/process_2.bin of=$(IMAGE) bs=512 seek=101 conv=notrunc 2>/dev/null
+$(IMAGE): $(BOOT) $(KERNEL) src/test_processes/process_1.bin src/test_processes/process_2.bin disk_setup.sh
+	@bash -x disk_setup.sh
 
 # -------- Run --------
 run: $(IMAGE)
@@ -152,8 +141,10 @@ debug: $(IMAGE)
 	$(EMU) -m 512 -drive format=raw,file=$(IMAGE) -s -S
 
 # -------- Clean --------
-clean: clean_kernel clean_lib
+clean: clean_kernel clean_lib clean_boot
 
+clean_boot:
+	rm -rf $(BUILD_BOOT)
 clean_kernel:
 	rm -rf $(BUILD_KERNEL)
 clean_lib:

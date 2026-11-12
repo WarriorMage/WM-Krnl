@@ -62,7 +62,7 @@ __attribute__((section(".start"))) void kernel_cont(void)
     setup_idtr();
     clear_screen();
     remap_pic();
-    if (!map_region_to_process(BOOTSTRAP_DIR_ADDR, VGA_PBASE, VGA_VBASE, 32 * 1024))
+    if (!map_region_to_process((page_directory_entry *)BOOTSTRAP_DIR_ADDR, VGA_PBASE, VGA_VBASE, 32 * 1024))
         kernel_panic("Failed to virtually map VGA");
     vga_remapped = true;
     kernel_main();

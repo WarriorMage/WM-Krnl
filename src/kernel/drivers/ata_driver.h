@@ -2,7 +2,6 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "wmfs/init.h"
 
 typedef struct __ata_disk_info_t
 {

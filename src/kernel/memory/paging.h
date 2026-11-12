@@ -25,7 +25,7 @@
 #define PAGE_TABLE_BASE (page_table_entry *)0xFFC00000
 typedef uint32_t page_table_entry, page_directory_entry;
 
-typedef struct directory_location
+typedef struct __directory_location
 {
     uint32_t directory_pa;
     page_directory_entry *directory_va;

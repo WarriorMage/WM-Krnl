@@ -1,8 +1,8 @@
-#include "wmfs/init.h"
+#include "fs/wmfs/init.h"
 #include "drivers/keyboard.h"
 #include "misc/utilities.h"
-#include "wmfs/block.h"
-#include "wmfs/inode.h"
+#include "block/block.h"
+#include "fs/wmfs/inode.h"
 #include "process/process.h"
 #include "memory/vir_allocator.h"
 

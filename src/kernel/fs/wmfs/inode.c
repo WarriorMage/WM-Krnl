@@ -1,14 +1,20 @@
 #include <stddef.h>
-#include "wmfs/block.h"
-#include "wmfs/init.h"
-#include "wmfs/inode.h"
+#include "block/block.h"
+#include "fs/wmfs/block.h"
+#include "fs/wmfs/init.h"
+#include "fs/wmfs/inode.h"
 #include "misc/utilities.h"
 
-typedef struct __extent_t
+// calculates offset from the start block
+uint32_t inode_to_block(uint32_t inode_num)
 {
-    uint32_t start_block;
-    uint32_t block_count;
-} extent_t;
+    return inode_num / INODES_PER_BLOCK;
+}
+// offset within the block
+uint32_t inode_to_offset(uint32_t inode_num)
+{
+    return inode_num % INODES_PER_BLOCK;
+}
 
 #define INODE_CACHE_SIZE 32
 
@@ -33,23 +39,6 @@ void icache_init(void)
     icache.ptr = icache.size = 0;
 }
 
-icache_ent_t *icache_insert(size_t inode_num, const inode_t *inode, bool dirty)
-{
-    if (inode_num == 0)
-        return NULL;
-    if (icache.size == INODE_CACHE_SIZE)
-        icache_evict();
-
-    icache_ent_t *insert_entry = &icache.cache[icache.ptr];
-    insert_entry->cached_inode = *inode;
-    insert_entry->inode_number = inode_num;
-    insert_entry->dirty = dirty;
-    insert_entry->valid = true;
-    icache.ptr = (icache.ptr + 1) % INODE_CACHE_SIZE;
-    ++icache.size;
-    return insert_entry;
-}
-
 void icache_evict(void)
 {
     // don't do expensive evict when space exists in cache
@@ -67,6 +56,23 @@ void icache_evict(void)
     --icache.size;
 }
 
+icache_ent_t *icache_insert(size_t inode_num, const inode_t *inode, bool dirty)
+{
+    if (inode_num == 0)
+        return NULL;
+    if (icache.size == INODE_CACHE_SIZE)
+        icache_evict();
+
+    icache_ent_t *insert_entry = &icache.cache[icache.ptr];
+    insert_entry->cached_inode = *inode;
+    insert_entry->inode_number = inode_num;
+    insert_entry->dirty = dirty;
+    insert_entry->valid = true;
+    icache.ptr = (icache.ptr + 1) % INODE_CACHE_SIZE;
+    ++icache.size;
+    return insert_entry;
+}
+
 // O(n) linear scan
 icache_ent_t *icache_scan(uint32_t inode_num)
 {
@@ -78,21 +84,6 @@ icache_ent_t *icache_scan(uint32_t inode_num)
             return &icache.cache[i];
     }
     return NULL;
-}
-
-// calculates offset from the start block
-uint32_t bitmap_bit_to_block(uint32_t bit)
-{
-    return bit / (BLOCK_SIZE * 8);
-}
-uint32_t inode_to_block(uint32_t inode_num)
-{
-    return inode_num / INODES_PER_BLOCK;
-}
-// offset within the block
-uint32_t inode_to_offset(uint32_t inode_num)
-{
-    return inode_num % INODES_PER_BLOCK;
 }
 
 uint32_t ibitmap_alloc(void)
@@ -134,13 +125,13 @@ bool ibitmap_free(uint32_t inode_num)
     return false;
 }
 
-uint32_t inode_create(void)
+uint32_t inode_create(bool root)
 {
-    uint32_t inode_num = ibitmap_alloc();
+    uint32_t inode_num = root ? 1 : ibitmap_alloc();
     if (inode_num == 0)
         return 0;
     inode_t new_inode;
-    new_inode.file_size = new_inode.extent_count = new_inode.hard_link_count = 0;
+    new_inode.file_size = new_inode.block_count = new_inode.hard_link_count = 0;
     icache_insert(inode_num, &new_inode, true);
     return inode_num;
 }
@@ -150,7 +141,7 @@ void inode_destroy(uint32_t inode_num)
     if (inode_num == 0)
         return;
     icache_ent_t *target_inode;
-    if (target_inode = icache_scan(inode_num))
+    if ((target_inode = icache_scan(inode_num)))
     {
         target_inode->dirty = false;
         target_inode->valid = false;
@@ -163,10 +154,26 @@ inode_t *inode_read(uint32_t inode_num)
     if (inode_num == 0)
         return NULL;
     icache_ent_t *target_inode;
-    if (target_inode = icache_scan(inode_num))
+    if ((target_inode = icache_scan(inode_num)))
         return &target_inode->cached_inode;
 
     inode_t tmp_buf[INODES_PER_BLOCK];
     read_blocks(superblock.inode_start_block + inode_to_block(inode_num), 1, tmp_buf);
     return &icache_insert(inode_num, &tmp_buf[inode_to_offset(inode_num)], false)->cached_inode;
+}
+
+void inode_write(uint32_t inode_num, const inode_t *data)
+{
+    if (inode_num == 0)
+        return;
+    icache_ent_t *target_inode;
+    if ((target_inode = icache_scan(inode_num)))
+    {
+        target_inode->dirty = true;
+        target_inode->cached_inode = *data;
+    }
+    else
+    {
+        icache_insert(inode_num, data, true);
+    }
 }

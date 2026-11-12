@@ -1,8 +1,7 @@
 #pragma once
 
 #include <stdint.h>
-
-extern uint8_t *ibitmap_cache, *dbitmap_cache;
+#include <stdbool.h>
 
 typedef struct __superblock_t_
 {

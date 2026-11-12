@@ -1,6 +1,4 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <stdbool.h>
 #include "misc/io.h"
 #include "drivers/ata_driver.h"
 

@@ -19,6 +19,7 @@ void kernel_panic(const char *error);
 
 int32_t __sys_print_buffer_to_vga(syscall_args *arguments);
 unsigned int string_length(const char *string);
+int strncmp(const char *s1, const char *s2, size_t len);
 void memcpy(void *dest, const void *src, size_t bytes);
 
 typedef enum __alloc_bit{

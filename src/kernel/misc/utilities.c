@@ -147,6 +147,19 @@ unsigned int string_length(const char *string)
     return length;
 }
 
+int strncmp(const char *s1, const char *s2, size_t len)
+{
+    size_t cmp = 0;
+    while (cmp < len && *s1 && *s1 == *s2)
+    {
+        ++s1;
+        ++s2;
+        ++cmp;
+    }
+
+    return (unsigned char)*s1 - (unsigned char)*s2;
+}
+
 size_t read_line(char *buf, size_t max_len)
 {
     if (max_len == 0)
